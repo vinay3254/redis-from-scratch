@@ -1,14 +1,44 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     String(Vec<u8>),
+    List(VecDeque<Vec<u8>>),
 }
 
 pub struct Db {
     entries: HashMap<Vec<u8>, Value>,
     expirations: HashMap<Vec<u8>, Instant>,
+}
+
+fn normalize_indices(len: usize, start: i64, stop: i64) -> Option<(usize, usize)> {
+    if len == 0 {
+        return None;
+    }
+    let l = len as i64;
+    let mut s = if start < 0 { l + start } else { start };
+    let mut e = if stop < 0 { l + stop } else { stop };
+
+    if s < 0 {
+        s = 0;
+    }
+    if e < 0 {
+        return None;
+    }
+
+    if s >= l {
+        return None;
+    }
+    if e >= l {
+        e = l - 1;
+    }
+
+    if s > e {
+        return None;
+    }
+
+    Some((s as usize, e as usize))
 }
 
 impl Db {
@@ -107,6 +137,92 @@ impl Db {
         }
         count
     }
+
+    pub fn lpush(&mut self, key: &[u8], elements: &[Vec<u8>]) -> Result<usize, ()> {
+        self.check_expired(key);
+        let list = match self.entries.get_mut(key) {
+            Some(Value::List(l)) => l,
+            Some(_) => return Err(()),
+            None => {
+                self.entries
+                    .insert(key.to_vec(), Value::List(VecDeque::new()));
+                match self.entries.get_mut(key) {
+                    Some(Value::List(l)) => l,
+                    _ => unreachable!(),
+                }
+            }
+        };
+        for elem in elements {
+            list.push_front(elem.clone());
+        }
+        Ok(list.len())
+    }
+
+    pub fn rpush(&mut self, key: &[u8], elements: &[Vec<u8>]) -> Result<usize, ()> {
+        self.check_expired(key);
+        let list = match self.entries.get_mut(key) {
+            Some(Value::List(l)) => l,
+            Some(_) => return Err(()),
+            None => {
+                self.entries
+                    .insert(key.to_vec(), Value::List(VecDeque::new()));
+                match self.entries.get_mut(key) {
+                    Some(Value::List(l)) => l,
+                    _ => unreachable!(),
+                }
+            }
+        };
+        for elem in elements {
+            list.push_back(elem.clone());
+        }
+        Ok(list.len())
+    }
+
+    pub fn lpop(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>, ()> {
+        self.check_expired(key);
+        match self.entries.get_mut(key) {
+            Some(Value::List(l)) => {
+                let item = l.pop_front();
+                if l.is_empty() {
+                    self.entries.remove(key);
+                    self.expirations.remove(key);
+                }
+                Ok(item)
+            }
+            Some(_) => Err(()),
+            None => Ok(None),
+        }
+    }
+
+    pub fn rpop(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>, ()> {
+        self.check_expired(key);
+        match self.entries.get_mut(key) {
+            Some(Value::List(l)) => {
+                let item = l.pop_back();
+                if l.is_empty() {
+                    self.entries.remove(key);
+                    self.expirations.remove(key);
+                }
+                Ok(item)
+            }
+            Some(_) => Err(()),
+            None => Ok(None),
+        }
+    }
+
+    pub fn lrange(&mut self, key: &[u8], start: i64, stop: i64) -> Result<Vec<Vec<u8>>, ()> {
+        self.check_expired(key);
+        match self.entries.get(key) {
+            Some(Value::List(l)) => {
+                match normalize_indices(l.len(), start, stop) {
+                    Some((s, e)) => Ok(l.range(s..=e).cloned().collect()),
+                    None => Ok(Vec::new()),
+                }
+            }
+            Some(_) => Err(()),
+            None => Ok(Vec::new()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -155,5 +271,22 @@ mod tests {
 
         assert_eq!(db.purge_expired(), 1);
         assert_eq!(db.ttl(b"k1"), -2);
+    }
+
+    #[test]
+    fn test_list_operations() {
+        let mut db = Db::new();
+        let k = b"l1";
+
+        assert_eq!(db.rpush(k, &[b"a".to_vec(), b"b".to_vec()]), Ok(2));
+        assert_eq!(db.lpush(k, &[b"first".to_vec()]), Ok(3));
+
+        let res = db.lrange(k, 0, -1).unwrap();
+        assert_eq!(res, vec![b"first".to_vec(), b"a".to_vec(), b"b".to_vec()]);
+
+        assert_eq!(db.lpop(k), Ok(Some(b"first".to_vec())));
+        assert_eq!(db.rpop(k), Ok(Some(b"b".to_vec())));
+        assert_eq!(db.rpop(k), Ok(Some(b"a".to_vec())));
+        assert_eq!(db.rpop(k), Ok(None));
     }
 }
