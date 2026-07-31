@@ -1,12 +1,29 @@
+use crate::skiplist::SkipList;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
+pub struct ZSet {
+    pub dict: HashMap<Vec<u8>, f64>,
+    pub skiplist: SkipList,
+}
+
+impl ZSet {
+    pub fn new() -> Self {
+        ZSet {
+            dict: HashMap::new(),
+            skiplist: SkipList::new(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Value {
     String(Vec<u8>),
     List(VecDeque<Vec<u8>>),
     Hash(HashMap<Vec<u8>, Vec<u8>>),
     Set(HashSet<Vec<u8>>),
+    ZSet(ZSet),
 }
 
 pub struct Db {
@@ -349,6 +366,63 @@ impl Db {
             None => Ok(false),
         }
     }
+
+    pub fn zadd(&mut self, key: &[u8], pairs: &[(f64, Vec<u8>)]) -> Result<usize, ()> {
+        self.check_expired(key);
+        let zset = match self.entries.get_mut(key) {
+            Some(Value::ZSet(z)) => z,
+            Some(_) => return Err(()),
+            None => {
+                self.entries
+                    .insert(key.to_vec(), Value::ZSet(ZSet::new()));
+                match self.entries.get_mut(key) {
+                    Some(Value::ZSet(z)) => z,
+                    _ => unreachable!(),
+                }
+            }
+        };
+        let mut added = 0;
+        for (score, member) in pairs {
+            if let Some(&old_score) = zset.dict.get(member) {
+                zset.skiplist.remove(old_score, member);
+                zset.dict.insert(member.clone(), *score);
+                zset.skiplist.insert(*score, member.clone());
+            } else {
+                zset.dict.insert(member.clone(), *score);
+                zset.skiplist.insert(*score, member.clone());
+                added += 1;
+            }
+        }
+        Ok(added)
+    }
+
+    pub fn zscore(&mut self, key: &[u8], member: &[u8]) -> Result<Option<f64>, ()> {
+        self.check_expired(key);
+        match self.entries.get(key) {
+            Some(Value::ZSet(z)) => Ok(z.dict.get(member).copied()),
+            Some(_) => Err(()),
+            None => Ok(None),
+        }
+    }
+
+    pub fn zrange(
+        &mut self,
+        key: &[u8],
+        start: i64,
+        stop: i64,
+    ) -> Result<Vec<(Vec<u8>, f64)>, ()> {
+        self.check_expired(key);
+        match self.entries.get(key) {
+            Some(Value::ZSet(z)) => {
+                match normalize_indices(z.skiplist.len(), start, stop) {
+                    Some((s, e)) => Ok(z.skiplist.get_range(s, e)),
+                    None => Ok(Vec::new()),
+                }
+            }
+            Some(_) => Err(()),
+            None => Ok(Vec::new()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -445,5 +519,21 @@ mod tests {
 
         assert_eq!(db.srem(k, &[b"m1".to_vec()]), Ok(1));
         assert_eq!(db.sismember(k, b"m1"), Ok(false));
+    }
+
+    #[test]
+    fn test_zset_operations() {
+        let mut db = Db::new();
+        let k = b"z1";
+
+        let pairs = vec![(10.0, b"one".to_vec()), (20.0, b"two".to_vec())];
+        assert_eq!(db.zadd(k, &pairs), Ok(2));
+        assert_eq!(db.zscore(k, b"two"), Ok(Some(20.0)));
+
+        let range = db.zrange(k, 0, -1).unwrap();
+        assert_eq!(
+            range,
+            vec![(b"one".to_vec(), 10.0), (b"two".to_vec(), 20.0)]
+        );
     }
 }
