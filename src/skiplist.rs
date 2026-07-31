@@ -52,6 +52,16 @@ impl PartialEq for SkipList {
     }
 }
 
+impl Clone for SkipList {
+    fn clone(&self) -> Self {
+        let mut new_sl = SkipList::new();
+        for (member, score) in self.get_range(0, self.length) {
+            new_sl.insert(score, member);
+        }
+        new_sl
+    }
+}
+
 impl SkipList {
     pub fn new() -> Self {
         let head = Node::new(0.0, Vec::new(), MAX_LEVEL);

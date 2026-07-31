@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod persistence;
 mod resp;
 mod skiplist;
 
@@ -7,6 +8,7 @@ use db::Db;
 use resp::RespFrame;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -27,10 +29,7 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>) {
         loop {
             match RespFrame::parse(&buffer) {
                 Ok(Some((frame, consumed))) => {
-                    let response_frame = {
-                        let mut db_guard = db.lock().unwrap();
-                        commands::dispatch(frame, &mut db_guard)
-                    };
+                    let response_frame = commands::dispatch(frame, Arc::clone(&db));
                     let response_bytes = response_frame.serialize();
                     if stream.write_all(&response_bytes).is_err() {
                         return;
@@ -49,7 +48,16 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>) {
 }
 
 fn main() {
-    let db = Arc::new(Mutex::new(Db::new()));
+    let db_instance = if Path::new("dump.rdb").exists() {
+        match persistence::rdb::load_db("dump.rdb") {
+            Ok(loaded_db) => loaded_db,
+            Err(_) => Db::new(),
+        }
+    } else {
+        Db::new()
+    };
+
+    let db = Arc::new(Mutex::new(db_instance));
 
     let db_active_expire = Arc::clone(&db);
     thread::spawn(move || loop {
