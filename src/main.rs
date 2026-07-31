@@ -5,6 +5,7 @@ mod resp;
 mod skiplist;
 
 use db::Db;
+use persistence::aof::Aof;
 use resp::RespFrame;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -13,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>) {
+fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>, aof: Arc<Aof>) {
     let mut buffer = Vec::new();
     let mut read_buf = [0u8; 512];
 
@@ -29,7 +30,7 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>) {
         loop {
             match RespFrame::parse(&buffer) {
                 Ok(Some((frame, consumed))) => {
-                    let response_frame = commands::dispatch(frame, Arc::clone(&db));
+                    let response_frame = commands::dispatch(frame, Arc::clone(&db), Some(&aof));
                     let response_bytes = response_frame.serialize();
                     if stream.write_all(&response_bytes).is_err() {
                         return;
@@ -48,7 +49,7 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>) {
 }
 
 fn main() {
-    let db_instance = if Path::new("dump.rdb").exists() {
+    let mut db_instance = if Path::new("dump.rdb").exists() {
         match persistence::rdb::load_db("dump.rdb") {
             Ok(loaded_db) => loaded_db,
             Err(_) => Db::new(),
@@ -57,7 +58,12 @@ fn main() {
         Db::new()
     };
 
+    if Path::new("appendonly.aof").exists() {
+        Aof::replay("appendonly.aof", &mut db_instance).ok();
+    }
+
     let db = Arc::new(Mutex::new(db_instance));
+    let aof = Arc::new(Aof::open("appendonly.aof").expect("failed to open appendonly.aof"));
 
     let db_active_expire = Arc::clone(&db);
     thread::spawn(move || loop {
@@ -72,7 +78,8 @@ fn main() {
         match stream {
             Ok(stream) => {
                 let db_clone = Arc::clone(&db);
-                thread::spawn(move || handle_connection(stream, db_clone));
+                let aof_clone = Arc::clone(&aof);
+                thread::spawn(move || handle_connection(stream, db_clone, aof_clone));
             }
             Err(_) => continue,
         }
