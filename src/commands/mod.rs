@@ -1,4 +1,5 @@
 pub mod generic;
+pub mod hash;
 pub mod list;
 pub mod string;
 
@@ -42,6 +43,10 @@ pub fn dispatch(frame: RespFrame, db: &mut Db) -> RespFrame {
         "LPOP" => list::lpop(db, cmd_args),
         "RPOP" => list::rpop(db, cmd_args),
         "LRANGE" => list::lrange(db, cmd_args),
+        "HSET" => hash::hset(db, cmd_args),
+        "HGET" => hash::hget(db, cmd_args),
+        "HGETALL" => hash::hgetall(db, cmd_args),
+        "HDEL" => hash::hdel(db, cmd_args),
         _ => RespFrame::Error(format!("ERR unknown command '{}'", cmd_name)),
     }
 }
@@ -192,5 +197,47 @@ mod tests {
             dispatch(rpop_frame, &mut db),
             RespFrame::BulkString(Some(b"b".to_vec()))
         );
+    }
+
+    #[test]
+    fn test_hash_commands() {
+        let mut db = Db::new();
+
+        let hset_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"HSET".to_vec())),
+            RespFrame::BulkString(Some(b"myhash".to_vec())),
+            RespFrame::BulkString(Some(b"f1".to_vec())),
+            RespFrame::BulkString(Some(b"v1".to_vec())),
+            RespFrame::BulkString(Some(b"f2".to_vec())),
+            RespFrame::BulkString(Some(b"v2".to_vec())),
+        ]));
+        assert_eq!(dispatch(hset_frame, &mut db), RespFrame::Integer(2));
+
+        let hget_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"HGET".to_vec())),
+            RespFrame::BulkString(Some(b"myhash".to_vec())),
+            RespFrame::BulkString(Some(b"f1".to_vec())),
+        ]));
+        assert_eq!(
+            dispatch(hget_frame, &mut db),
+            RespFrame::BulkString(Some(b"v1".to_vec()))
+        );
+
+        let hdel_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"HDEL".to_vec())),
+            RespFrame::BulkString(Some(b"myhash".to_vec())),
+            RespFrame::BulkString(Some(b"f1".to_vec())),
+        ]));
+        assert_eq!(dispatch(hdel_frame, &mut db), RespFrame::Integer(1));
+
+        let hgetall_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"HGETALL".to_vec())),
+            RespFrame::BulkString(Some(b"myhash".to_vec())),
+        ]));
+        let res = dispatch(hgetall_frame, &mut db);
+        match res {
+            RespFrame::Array(Some(arr)) => assert_eq!(arr.len(), 2),
+            _ => panic!("Expected array"),
+        }
     }
 }

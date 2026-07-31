@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 pub enum Value {
     String(Vec<u8>),
     List(VecDeque<Vec<u8>>),
+    Hash(HashMap<Vec<u8>, Vec<u8>>),
 }
 
 pub struct Db {
@@ -223,6 +224,68 @@ impl Db {
             None => Ok(Vec::new()),
         }
     }
+
+    pub fn hset(&mut self, key: &[u8], pairs: &[(Vec<u8>, Vec<u8>)]) -> Result<usize, ()> {
+        self.check_expired(key);
+        let hash = match self.entries.get_mut(key) {
+            Some(Value::Hash(h)) => h,
+            Some(_) => return Err(()),
+            None => {
+                self.entries
+                    .insert(key.to_vec(), Value::Hash(HashMap::new()));
+                match self.entries.get_mut(key) {
+                    Some(Value::Hash(h)) => h,
+                    _ => unreachable!(),
+                }
+            }
+        };
+        let mut created = 0;
+        for (field, val) in pairs {
+            if hash.insert(field.clone(), val.clone()).is_none() {
+                created += 1;
+            }
+        }
+        Ok(created)
+    }
+
+    pub fn hget(&mut self, key: &[u8], field: &[u8]) -> Result<Option<Vec<u8>>, ()> {
+        self.check_expired(key);
+        match self.entries.get(key) {
+            Some(Value::Hash(h)) => Ok(h.get(field).cloned()),
+            Some(_) => Err(()),
+            None => Ok(None),
+        }
+    }
+
+    pub fn hgetall(&mut self, key: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, ()> {
+        self.check_expired(key);
+        match self.entries.get(key) {
+            Some(Value::Hash(h)) => Ok(h.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+            Some(_) => Err(()),
+            None => Ok(Vec::new()),
+        }
+    }
+
+    pub fn hdel(&mut self, key: &[u8], fields: &[Vec<u8>]) -> Result<usize, ()> {
+        self.check_expired(key);
+        match self.entries.get_mut(key) {
+            Some(Value::Hash(h)) => {
+                let mut removed = 0;
+                for field in fields {
+                    if h.remove(field).is_some() {
+                        removed += 1;
+                    }
+                }
+                if h.is_empty() {
+                    self.entries.remove(key);
+                    self.expirations.remove(key);
+                }
+                Ok(removed)
+            }
+            Some(_) => Err(()),
+            None => Ok(0),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -288,5 +351,22 @@ mod tests {
         assert_eq!(db.rpop(k), Ok(Some(b"b".to_vec())));
         assert_eq!(db.rpop(k), Ok(Some(b"a".to_vec())));
         assert_eq!(db.rpop(k), Ok(None));
+    }
+
+    #[test]
+    fn test_hash_operations() {
+        let mut db = Db::new();
+        let k = b"h1";
+
+        let pairs = vec![
+            (b"f1".to_vec(), b"v1".to_vec()),
+            (b"f2".to_vec(), b"v2".to_vec()),
+        ];
+        assert_eq!(db.hset(k, &pairs), Ok(2));
+        assert_eq!(db.hget(k, b"f1"), Ok(Some(b"v1".to_vec())));
+        assert_eq!(db.hget(k, b"f3"), Ok(None));
+
+        assert_eq!(db.hdel(k, &[b"f1".to_vec()]), Ok(1));
+        assert_eq!(db.hget(k, b"f1"), Ok(None));
     }
 }
