@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod resp;
+mod skiplist;
 
 use db::Db;
 use resp::RespFrame;

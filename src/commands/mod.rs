@@ -3,6 +3,7 @@ pub mod hash;
 pub mod list;
 pub mod set;
 pub mod string;
+pub mod zset;
 
 use crate::db::Db;
 use crate::resp::RespFrame;
@@ -52,6 +53,9 @@ pub fn dispatch(frame: RespFrame, db: &mut Db) -> RespFrame {
         "SREM" => set::srem(db, cmd_args),
         "SMEMBERS" => set::smembers(db, cmd_args),
         "SISMEMBER" => set::sismember(db, cmd_args),
+        "ZADD" => zset::zadd(db, cmd_args),
+        "ZSCORE" => zset::zscore(db, cmd_args),
+        "ZRANGE" => zset::zrange(db, cmd_args),
         _ => RespFrame::Error(format!("ERR unknown command '{}'", cmd_name)),
     }
 }
@@ -280,5 +284,45 @@ mod tests {
             RespFrame::BulkString(Some(b"m1".to_vec())),
         ]));
         assert_eq!(dispatch(srem_frame, &mut db), RespFrame::Integer(1));
+    }
+
+    #[test]
+    fn test_zset_commands() {
+        let mut db = Db::new();
+
+        let zadd_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"ZADD".to_vec())),
+            RespFrame::BulkString(Some(b"myzset".to_vec())),
+            RespFrame::BulkString(Some(b"10".to_vec())),
+            RespFrame::BulkString(Some(b"one".to_vec())),
+            RespFrame::BulkString(Some(b"20".to_vec())),
+            RespFrame::BulkString(Some(b"two".to_vec())),
+        ]));
+        assert_eq!(dispatch(zadd_frame, &mut db), RespFrame::Integer(2));
+
+        let zscore_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"ZSCORE".to_vec())),
+            RespFrame::BulkString(Some(b"myzset".to_vec())),
+            RespFrame::BulkString(Some(b"two".to_vec())),
+        ]));
+        assert_eq!(
+            dispatch(zscore_frame, &mut db),
+            RespFrame::BulkString(Some(b"20".to_vec()))
+        );
+
+        let zrange_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"ZRANGE".to_vec())),
+            RespFrame::BulkString(Some(b"myzset".to_vec())),
+            RespFrame::BulkString(Some(b"0".to_vec())),
+            RespFrame::BulkString(Some(b"-1".to_vec())),
+            RespFrame::BulkString(Some(b"WITHSCORES".to_vec())),
+        ]));
+        let expected_zrange = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"one".to_vec())),
+            RespFrame::BulkString(Some(b"10".to_vec())),
+            RespFrame::BulkString(Some(b"two".to_vec())),
+            RespFrame::BulkString(Some(b"20".to_vec())),
+        ]));
+        assert_eq!(dispatch(zrange_frame, &mut db), expected_zrange);
     }
 }
