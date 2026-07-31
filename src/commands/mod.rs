@@ -4,6 +4,7 @@ pub mod list;
 pub mod pubsub;
 pub mod set;
 pub mod string;
+pub mod tx;
 pub mod zset;
 
 use crate::db::Db;
