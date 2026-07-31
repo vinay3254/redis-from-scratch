@@ -55,6 +55,8 @@ fn handle_connection(
 
     let (tx, rx) = std::sync::mpsc::channel::<RespFrame>();
     let mut is_subscribed = false;
+    let mut in_transaction = false;
+    let mut tx_queue: Vec<RespFrame> = Vec::new();
 
     stream.set_read_timeout(Some(Duration::from_millis(100))).ok();
 
@@ -92,7 +94,54 @@ fn handle_connection(
             match RespFrame::parse(&buffer) {
                 Ok(Some((frame, consumed))) => {
                     let (cmd_name, cmd_args) = parse_cmd_parts(&frame);
-                    if cmd_name == "SUBSCRIBE" {
+                    if cmd_name == "MULTI" {
+                        if in_transaction {
+                            let err = RespFrame::Error("ERR MULTI calls can not be nested".into());
+                            let _ = stream.write_all(&err.serialize());
+                        } else {
+                            in_transaction = true;
+                            tx_queue.clear();
+                            let ok = RespFrame::SimpleString("OK".into());
+                            let _ = stream.write_all(&ok.serialize());
+                        }
+                    } else if cmd_name == "DISCARD" {
+                        if !in_transaction {
+                            let err = RespFrame::Error("ERR DISCARD without MULTI".into());
+                            let _ = stream.write_all(&err.serialize());
+                        } else {
+                            in_transaction = false;
+                            tx_queue.clear();
+                            let ok = RespFrame::SimpleString("OK".into());
+                            let _ = stream.write_all(&ok.serialize());
+                        }
+                    } else if cmd_name == "EXEC" {
+                        if !in_transaction {
+                            let err = RespFrame::Error("ERR EXEC without MULTI".into());
+                            let _ = stream.write_all(&err.serialize());
+                        } else {
+                            in_transaction = false;
+                            let queue = std::mem::take(&mut tx_queue);
+                            let response_frame = commands::tx::exec(
+                                queue,
+                                Arc::clone(&db),
+                                Some(Arc::clone(&pubsub)),
+                                Some(&aof),
+                            );
+                            if stream.write_all(&response_frame.serialize()).is_err() {
+                                let mut ps = pubsub.lock().unwrap();
+                                ps.remove_client(client_id);
+                                return;
+                            }
+                        }
+                    } else if in_transaction {
+                        tx_queue.push(frame);
+                        let queued = RespFrame::SimpleString("QUEUED".into());
+                        if stream.write_all(&queued.serialize()).is_err() {
+                            let mut ps = pubsub.lock().unwrap();
+                            ps.remove_client(client_id);
+                            return;
+                        }
+                    } else if cmd_name == "SUBSCRIBE" {
                         is_subscribed = true;
                         let responses = {
                             let mut ps = pubsub.lock().unwrap();
