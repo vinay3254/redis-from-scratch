@@ -1,4 +1,5 @@
 pub mod generic;
+pub mod list;
 pub mod string;
 
 use crate::db::Db;
@@ -36,6 +37,11 @@ pub fn dispatch(frame: RespFrame, db: &mut Db) -> RespFrame {
         "EXPIRE" => generic::expire(db, cmd_args),
         "PEXPIRE" => generic::pexpire(db, cmd_args),
         "TTL" => generic::ttl(db, cmd_args),
+        "LPUSH" => list::lpush(db, cmd_args),
+        "RPUSH" => list::rpush(db, cmd_args),
+        "LPOP" => list::lpop(db, cmd_args),
+        "RPOP" => list::rpop(db, cmd_args),
+        "LRANGE" => list::lrange(db, cmd_args),
         _ => RespFrame::Error(format!("ERR unknown command '{}'", cmd_name)),
     }
 }
@@ -135,5 +141,56 @@ mod tests {
         sleep(Duration::from_millis(60));
 
         assert_eq!(dispatch(ttl_frame, &mut db), RespFrame::Integer(-2));
+    }
+
+    #[test]
+    fn test_list_commands() {
+        let mut db = Db::new();
+
+        let rpush_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"RPUSH".to_vec())),
+            RespFrame::BulkString(Some(b"mylist".to_vec())),
+            RespFrame::BulkString(Some(b"a".to_vec())),
+            RespFrame::BulkString(Some(b"b".to_vec())),
+        ]));
+        assert_eq!(dispatch(rpush_frame, &mut db), RespFrame::Integer(2));
+
+        let lpush_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"LPUSH".to_vec())),
+            RespFrame::BulkString(Some(b"mylist".to_vec())),
+            RespFrame::BulkString(Some(b"first".to_vec())),
+        ]));
+        assert_eq!(dispatch(lpush_frame, &mut db), RespFrame::Integer(3));
+
+        let lrange_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"LRANGE".to_vec())),
+            RespFrame::BulkString(Some(b"mylist".to_vec())),
+            RespFrame::BulkString(Some(b"0".to_vec())),
+            RespFrame::BulkString(Some(b"-1".to_vec())),
+        ]));
+        let expected_lrange = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"first".to_vec())),
+            RespFrame::BulkString(Some(b"a".to_vec())),
+            RespFrame::BulkString(Some(b"b".to_vec())),
+        ]));
+        assert_eq!(dispatch(lrange_frame, &mut db), expected_lrange);
+
+        let lpop_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"LPOP".to_vec())),
+            RespFrame::BulkString(Some(b"mylist".to_vec())),
+        ]));
+        assert_eq!(
+            dispatch(lpop_frame, &mut db),
+            RespFrame::BulkString(Some(b"first".to_vec()))
+        );
+
+        let rpop_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"RPOP".to_vec())),
+            RespFrame::BulkString(Some(b"mylist".to_vec())),
+        ]));
+        assert_eq!(
+            dispatch(rpop_frame, &mut db),
+            RespFrame::BulkString(Some(b"b".to_vec()))
+        );
     }
 }

@@ -30,6 +30,9 @@ pub fn get(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
     }
     match db.get(&args[0]) {
         Some(Value::String(val)) => RespFrame::BulkString(Some(val.clone())),
+        Some(_) => RespFrame::Error(
+            "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+        ),
         None => RespFrame::BulkString(None),
     }
 }
