@@ -2,7 +2,7 @@ use crate::skiplist::SkipList;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ZSet {
     pub dict: HashMap<Vec<u8>, f64>,
     pub skiplist: SkipList,
@@ -17,7 +17,7 @@ impl ZSet {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     String(Vec<u8>),
     List(VecDeque<Vec<u8>>),
@@ -66,6 +66,23 @@ impl Db {
             entries: HashMap::new(),
             expirations: HashMap::new(),
         }
+    }
+
+    pub fn snapshot_entries(&self) -> Vec<(Vec<u8>, Value, Option<Duration>)> {
+        let now = Instant::now();
+        let mut snapshot = Vec::new();
+        for (k, v) in &self.entries {
+            if let Some(&expire_at) = self.expirations.get(k) {
+                if now >= expire_at {
+                    continue;
+                }
+                let remaining = expire_at - now;
+                snapshot.push((k.clone(), v.clone(), Some(remaining)));
+            } else {
+                snapshot.push((k.clone(), v.clone(), None));
+            }
+        }
+        snapshot
     }
 
     fn check_expired(&mut self, key: &[u8]) -> bool {
