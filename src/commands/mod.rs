@@ -1,6 +1,7 @@
 pub mod generic;
 pub mod hash;
 pub mod list;
+pub mod set;
 pub mod string;
 
 use crate::db::Db;
@@ -47,6 +48,10 @@ pub fn dispatch(frame: RespFrame, db: &mut Db) -> RespFrame {
         "HGET" => hash::hget(db, cmd_args),
         "HGETALL" => hash::hgetall(db, cmd_args),
         "HDEL" => hash::hdel(db, cmd_args),
+        "SADD" => set::sadd(db, cmd_args),
+        "SREM" => set::srem(db, cmd_args),
+        "SMEMBERS" => set::smembers(db, cmd_args),
+        "SISMEMBER" => set::sismember(db, cmd_args),
         _ => RespFrame::Error(format!("ERR unknown command '{}'", cmd_name)),
     }
 }
@@ -239,5 +244,41 @@ mod tests {
             RespFrame::Array(Some(arr)) => assert_eq!(arr.len(), 2),
             _ => panic!("Expected array"),
         }
+    }
+
+    #[test]
+    fn test_set_commands() {
+        let mut db = Db::new();
+
+        let sadd_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"SADD".to_vec())),
+            RespFrame::BulkString(Some(b"myset".to_vec())),
+            RespFrame::BulkString(Some(b"m1".to_vec())),
+            RespFrame::BulkString(Some(b"m2".to_vec())),
+        ]));
+        assert_eq!(dispatch(sadd_frame, &mut db), RespFrame::Integer(2));
+
+        let sismember_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"SISMEMBER".to_vec())),
+            RespFrame::BulkString(Some(b"myset".to_vec())),
+            RespFrame::BulkString(Some(b"m1".to_vec())),
+        ]));
+        assert_eq!(dispatch(sismember_frame, &mut db), RespFrame::Integer(1));
+
+        let smembers_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"SMEMBERS".to_vec())),
+            RespFrame::BulkString(Some(b"myset".to_vec())),
+        ]));
+        match dispatch(smembers_frame, &mut db) {
+            RespFrame::Array(Some(arr)) => assert_eq!(arr.len(), 2),
+            _ => panic!("Expected array"),
+        }
+
+        let srem_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"SREM".to_vec())),
+            RespFrame::BulkString(Some(b"myset".to_vec())),
+            RespFrame::BulkString(Some(b"m1".to_vec())),
+        ]));
+        assert_eq!(dispatch(srem_frame, &mut db), RespFrame::Integer(1));
     }
 }

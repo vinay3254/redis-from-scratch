@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -6,6 +6,7 @@ pub enum Value {
     String(Vec<u8>),
     List(VecDeque<Vec<u8>>),
     Hash(HashMap<Vec<u8>, Vec<u8>>),
+    Set(HashSet<Vec<u8>>),
 }
 
 pub struct Db {
@@ -286,6 +287,68 @@ impl Db {
             None => Ok(0),
         }
     }
+
+    pub fn sadd(&mut self, key: &[u8], members: &[Vec<u8>]) -> Result<usize, ()> {
+        self.check_expired(key);
+        let set = match self.entries.get_mut(key) {
+            Some(Value::Set(s)) => s,
+            Some(_) => return Err(()),
+            None => {
+                self.entries
+                    .insert(key.to_vec(), Value::Set(HashSet::new()));
+                match self.entries.get_mut(key) {
+                    Some(Value::Set(s)) => s,
+                    _ => unreachable!(),
+                }
+            }
+        };
+        let mut added = 0;
+        for member in members {
+            if set.insert(member.clone()) {
+                added += 1;
+            }
+        }
+        Ok(added)
+    }
+
+    pub fn srem(&mut self, key: &[u8], members: &[Vec<u8>]) -> Result<usize, ()> {
+        self.check_expired(key);
+        match self.entries.get_mut(key) {
+            Some(Value::Set(s)) => {
+                let mut removed = 0;
+                for member in members {
+                    if s.remove(member) {
+                        removed += 1;
+                    }
+                }
+                if s.is_empty() {
+                    self.entries.remove(key);
+                    self.expirations.remove(key);
+                }
+                Ok(removed)
+            }
+            Some(_) => Err(()),
+            None => Ok(0),
+        }
+    }
+
+    pub fn smembers(&mut self, key: &[u8]) -> Result<Vec<Vec<u8>>, ()> {
+        self.check_expired(key);
+        match self.entries.get(key) {
+            Some(Value::Set(s)) => Ok(s.iter().cloned().collect()),
+            Some(_) => Err(()),
+            None => Ok(Vec::new()),
+        }
+    }
+
+    pub fn sismember(&mut self, key: &[u8], member: &[u8]) -> Result<bool, ()> {
+        self.check_expired(key);
+        match self.entries.get(key) {
+            Some(Value::Set(s)) => Ok(s.contains(member)),
+            Some(_) => Err(()),
+            None => Ok(false),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -368,5 +431,19 @@ mod tests {
 
         assert_eq!(db.hdel(k, &[b"f1".to_vec()]), Ok(1));
         assert_eq!(db.hget(k, b"f1"), Ok(None));
+    }
+
+    #[test]
+    fn test_set_operations() {
+        let mut db = Db::new();
+        let k = b"s1";
+
+        assert_eq!(db.sadd(k, &[b"m1".to_vec(), b"m2".to_vec()]), Ok(2));
+        assert_eq!(db.sadd(k, &[b"m1".to_vec()]), Ok(0));
+        assert_eq!(db.sismember(k, b"m1"), Ok(true));
+        assert_eq!(db.sismember(k, b"m3"), Ok(false));
+
+        assert_eq!(db.srem(k, &[b"m1".to_vec()]), Ok(1));
+        assert_eq!(db.sismember(k, b"m1"), Ok(false));
     }
 }
