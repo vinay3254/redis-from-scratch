@@ -14,7 +14,7 @@
 - Concurrency model: thread-per-connection — one `std::thread` per accepted `TcpStream`, no async runtime.
 - No automated test suite. Every deliverable is verified manually against `redis-cli`/`netcat`; the user confirms it works before the next milestone starts.
 - Code has no comments.
-- Server listens on port `6379` (the standard Redis port), so `redis-cli` can be used unmodified against it starting from later milestones.
+- Server listens on port `6380` (not the standard `6379`, since a real `redis-server` is already running on this machine on that port). From Milestone 3 onward, invoke `redis-cli -p 6380` against it.
 
 ---
 
