@@ -33,6 +33,9 @@ pub fn dispatch(frame: RespFrame, db: &mut Db) -> RespFrame {
         "GET" => string::get(db, cmd_args),
         "DEL" => generic::del(db, cmd_args),
         "EXISTS" => generic::exists(db, cmd_args),
+        "EXPIRE" => generic::expire(db, cmd_args),
+        "PEXPIRE" => generic::pexpire(db, cmd_args),
+        "TTL" => generic::ttl(db, cmd_args),
         _ => RespFrame::Error(format!("ERR unknown command '{}'", cmd_name)),
     }
 }
@@ -40,6 +43,8 @@ pub fn dispatch(frame: RespFrame, db: &mut Db) -> RespFrame {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread::sleep;
+    use std::time::Duration;
 
     #[test]
     fn test_ping_echo() {
@@ -100,5 +105,35 @@ mod tests {
         assert_eq!(dispatch(del_frame, &mut db), RespFrame::Integer(1));
 
         assert_eq!(dispatch(get_frame, &mut db), RespFrame::BulkString(None));
+    }
+
+    #[test]
+    fn test_expire_ttl() {
+        let mut db = Db::new();
+
+        let set_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"SET".to_vec())),
+            RespFrame::BulkString(Some(b"k1".to_vec())),
+            RespFrame::BulkString(Some(b"v1".to_vec())),
+        ]));
+        dispatch(set_frame, &mut db);
+
+        let pexpire_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"PEXPIRE".to_vec())),
+            RespFrame::BulkString(Some(b"k1".to_vec())),
+            RespFrame::BulkString(Some(b"50".to_vec())),
+        ]));
+        assert_eq!(dispatch(pexpire_frame, &mut db), RespFrame::Integer(1));
+
+        let ttl_frame = RespFrame::Array(Some(vec![
+            RespFrame::BulkString(Some(b"TTL".to_vec())),
+            RespFrame::BulkString(Some(b"k1".to_vec())),
+        ]));
+        let res = dispatch(ttl_frame.clone(), &mut db);
+        assert!(matches!(res, RespFrame::Integer(_)));
+
+        sleep(Duration::from_millis(60));
+
+        assert_eq!(dispatch(ttl_frame, &mut db), RespFrame::Integer(-2));
     }
 }
