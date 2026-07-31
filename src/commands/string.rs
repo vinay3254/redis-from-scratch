@@ -24,7 +24,7 @@ pub fn set(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
     RespFrame::SimpleString("OK".into())
 }
 
-pub fn get(db: &Db, args: &[Vec<u8>]) -> RespFrame {
+pub fn get(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
     if args.len() != 1 {
         return RespFrame::Error("ERR wrong number of arguments for 'get' command".into());
     }

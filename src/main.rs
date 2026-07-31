@@ -8,6 +8,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>) {
     let mut buffer = Vec::new();
@@ -48,6 +49,14 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>) {
 
 fn main() {
     let db = Arc::new(Mutex::new(Db::new()));
+
+    let db_active_expire = Arc::clone(&db);
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_millis(100));
+        let mut db_guard = db_active_expire.lock().unwrap();
+        db_guard.purge_expired();
+    });
+
     let listener = TcpListener::bind("127.0.0.1:6380").expect("failed to bind to port 6380");
 
     for stream in listener.incoming() {
