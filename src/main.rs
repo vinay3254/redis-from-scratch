@@ -1,11 +1,13 @@
 mod commands;
 mod db;
 mod persistence;
+mod pubsub;
 mod resp;
 mod skiplist;
 
 use db::Db;
 use persistence::aof::Aof;
+use pubsub::PubSub;
 use resp::RespFrame;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -14,26 +16,115 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>, aof: Arc<Aof>) {
+fn parse_cmd_parts(frame: &RespFrame) -> (String, Vec<Vec<u8>>) {
+    let elements = match frame {
+        RespFrame::Array(Some(elements)) if !elements.is_empty() => elements,
+        _ => return (String::new(), Vec::new()),
+    };
+
+    let mut args = Vec::with_capacity(elements.len());
+    for elem in elements {
+        match elem {
+            RespFrame::BulkString(Some(bytes)) => args.push(bytes.clone()),
+            RespFrame::SimpleString(s) => args.push(s.clone().into_bytes()),
+            _ => return (String::new(), Vec::new()),
+        }
+    }
+
+    let cmd_name = match String::from_utf8(args[0].clone()) {
+        Ok(s) => s.to_uppercase(),
+        Err(_) => String::new(),
+    };
+
+    (cmd_name, args[1..].to_vec())
+}
+
+fn handle_connection(
+    mut stream: TcpStream,
+    db: Arc<Mutex<Db>>,
+    pubsub: Arc<Mutex<PubSub>>,
+    aof: Arc<Aof>,
+) {
     let mut buffer = Vec::new();
     let mut read_buf = [0u8; 512];
 
+    let client_id = {
+        let mut ps = pubsub.lock().unwrap();
+        ps.generate_client_id()
+    };
+
+    let (tx, rx) = std::sync::mpsc::channel::<RespFrame>();
+    let mut is_subscribed = false;
+
+    stream.set_read_timeout(Some(Duration::from_millis(100))).ok();
+
     loop {
-        let bytes_read = match stream.read(&mut read_buf) {
-            Ok(0) => return,
-            Ok(n) => n,
-            Err(_) => return,
-        };
+        if is_subscribed {
+            while let Ok(msg) = rx.try_recv() {
+                if stream.write_all(&msg.serialize()).is_err() {
+                    let mut ps = pubsub.lock().unwrap();
+                    ps.remove_client(client_id);
+                    return;
+                }
+            }
+        }
 
-        buffer.extend_from_slice(&read_buf[..bytes_read]);
+        match stream.read(&mut read_buf) {
+            Ok(0) => {
+                let mut ps = pubsub.lock().unwrap();
+                ps.remove_client(client_id);
+                return;
+            }
+            Ok(n) => {
+                buffer.extend_from_slice(&read_buf[..n]);
+            }
+            Err(ref e)
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut => {}
+            Err(_) => {
+                let mut ps = pubsub.lock().unwrap();
+                ps.remove_client(client_id);
+                return;
+            }
+        }
 
-        loop {
+        while !buffer.is_empty() {
             match RespFrame::parse(&buffer) {
                 Ok(Some((frame, consumed))) => {
-                    let response_frame = commands::dispatch(frame, Arc::clone(&db), Some(&aof));
-                    let response_bytes = response_frame.serialize();
-                    if stream.write_all(&response_bytes).is_err() {
-                        return;
+                    let (cmd_name, cmd_args) = parse_cmd_parts(&frame);
+                    if cmd_name == "SUBSCRIBE" {
+                        is_subscribed = true;
+                        let responses = {
+                            let mut ps = pubsub.lock().unwrap();
+                            ps.subscribe(client_id, &cmd_args, tx.clone())
+                        };
+                        for resp in responses {
+                            if stream.write_all(&resp.serialize()).is_err() {
+                                return;
+                            }
+                        }
+                    } else if cmd_name == "UNSUBSCRIBE" {
+                        let responses = {
+                            let mut ps = pubsub.lock().unwrap();
+                            ps.unsubscribe(client_id, &cmd_args)
+                        };
+                        for resp in responses {
+                            if stream.write_all(&resp.serialize()).is_err() {
+                                return;
+                            }
+                        }
+                    } else {
+                        let response_frame = commands::dispatch(
+                            frame,
+                            Arc::clone(&db),
+                            Some(Arc::clone(&pubsub)),
+                            Some(&aof),
+                        );
+                        if stream.write_all(&response_frame.serialize()).is_err() {
+                            let mut ps = pubsub.lock().unwrap();
+                            ps.remove_client(client_id);
+                            return;
+                        }
                     }
                     buffer.drain(..consumed);
                 }
@@ -41,6 +132,8 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Db>>, aof: Arc<Aof>) {
                 Err(_) => {
                     let err_frame = RespFrame::Error("ERR protocol error".into());
                     let _ = stream.write_all(&err_frame.serialize());
+                    let mut ps = pubsub.lock().unwrap();
+                    ps.remove_client(client_id);
                     return;
                 }
             }
@@ -63,6 +156,7 @@ fn main() {
     }
 
     let db = Arc::new(Mutex::new(db_instance));
+    let pubsub = Arc::new(Mutex::new(PubSub::new()));
     let aof = Arc::new(Aof::open("appendonly.aof").expect("failed to open appendonly.aof"));
 
     let db_active_expire = Arc::clone(&db);
@@ -78,8 +172,9 @@ fn main() {
         match stream {
             Ok(stream) => {
                 let db_clone = Arc::clone(&db);
+                let pubsub_clone = Arc::clone(&pubsub);
                 let aof_clone = Arc::clone(&aof);
-                thread::spawn(move || handle_connection(stream, db_clone, aof_clone));
+                thread::spawn(move || handle_connection(stream, db_clone, pubsub_clone, aof_clone));
             }
             Err(_) => continue,
         }

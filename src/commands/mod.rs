@@ -1,12 +1,14 @@
 pub mod generic;
 pub mod hash;
 pub mod list;
+pub mod pubsub;
 pub mod set;
 pub mod string;
 pub mod zset;
 
 use crate::db::Db;
 use crate::persistence::aof::Aof;
+use crate::pubsub::PubSub;
 use crate::resp::RespFrame;
 use std::sync::{Arc, Mutex};
 
@@ -82,7 +84,12 @@ pub fn dispatch_mutating(frame: RespFrame, db: &mut Db) -> RespFrame {
     }
 }
 
-pub fn dispatch(frame: RespFrame, db: Arc<Mutex<Db>>, aof: Option<&Aof>) -> RespFrame {
+pub fn dispatch(
+    frame: RespFrame,
+    db: Arc<Mutex<Db>>,
+    pubsub: Option<Arc<Mutex<PubSub>>>,
+    aof: Option<&Aof>,
+) -> RespFrame {
     let raw_frame = frame.clone();
     let elements = match &frame {
         RespFrame::Array(Some(elements)) if !elements.is_empty() => elements,
@@ -105,6 +112,13 @@ pub fn dispatch(frame: RespFrame, db: Arc<Mutex<Db>>, aof: Option<&Aof>) -> Resp
 
     if cmd_name == "BGSAVE" {
         return generic::bgsave(db, &args[1..]);
+    }
+
+    if cmd_name == "PUBLISH" {
+        if let Some(ps) = pubsub {
+            let mut ps_guard = ps.lock().unwrap();
+            return pubsub::publish(&mut ps_guard, &args[1..]);
+        }
     }
 
     let response = {
@@ -140,7 +154,7 @@ mod tests {
             b"PING".to_vec(),
         ))]));
         assert_eq!(
-            dispatch(ping_frame, Arc::clone(&db), None),
+            dispatch(ping_frame, Arc::clone(&db), None, None),
             RespFrame::SimpleString("PONG".into())
         );
 
@@ -149,7 +163,7 @@ mod tests {
             RespFrame::BulkString(Some(b"hello".to_vec())),
         ]));
         assert_eq!(
-            dispatch(echo_frame, Arc::clone(&db), None),
+            dispatch(echo_frame, Arc::clone(&db), None, None),
             RespFrame::BulkString(Some(b"hello".to_vec()))
         );
     }
@@ -164,7 +178,7 @@ mod tests {
             RespFrame::BulkString(Some(b"val1".to_vec())),
         ]));
         assert_eq!(
-            dispatch(set_frame, Arc::clone(&db), None),
+            dispatch(set_frame, Arc::clone(&db), None, None),
             RespFrame::SimpleString("OK".into())
         );
 
@@ -173,7 +187,7 @@ mod tests {
             RespFrame::BulkString(Some(b"key1".to_vec())),
         ]));
         assert_eq!(
-            dispatch(get_frame.clone(), Arc::clone(&db), None),
+            dispatch(get_frame.clone(), Arc::clone(&db), None, None),
             RespFrame::BulkString(Some(b"val1".to_vec()))
         );
 
@@ -182,15 +196,15 @@ mod tests {
             RespFrame::BulkString(Some(b"key1".to_vec())),
             RespFrame::BulkString(Some(b"key2".to_vec())),
         ]));
-        assert_eq!(dispatch(exists_frame, Arc::clone(&db), None), RespFrame::Integer(1));
+        assert_eq!(dispatch(exists_frame, Arc::clone(&db), None, None), RespFrame::Integer(1));
 
         let del_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"DEL".to_vec())),
             RespFrame::BulkString(Some(b"key1".to_vec())),
         ]));
-        assert_eq!(dispatch(del_frame, Arc::clone(&db), None), RespFrame::Integer(1));
+        assert_eq!(dispatch(del_frame, Arc::clone(&db), None, None), RespFrame::Integer(1));
 
-        assert_eq!(dispatch(get_frame, Arc::clone(&db), None), RespFrame::BulkString(None));
+        assert_eq!(dispatch(get_frame, Arc::clone(&db), None, None), RespFrame::BulkString(None));
     }
 
     #[test]
@@ -202,25 +216,25 @@ mod tests {
             RespFrame::BulkString(Some(b"k1".to_vec())),
             RespFrame::BulkString(Some(b"v1".to_vec())),
         ]));
-        dispatch(set_frame, Arc::clone(&db), None);
+        dispatch(set_frame, Arc::clone(&db), None, None);
 
         let pexpire_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"PEXPIRE".to_vec())),
             RespFrame::BulkString(Some(b"k1".to_vec())),
             RespFrame::BulkString(Some(b"50".to_vec())),
         ]));
-        assert_eq!(dispatch(pexpire_frame, Arc::clone(&db), None), RespFrame::Integer(1));
+        assert_eq!(dispatch(pexpire_frame, Arc::clone(&db), None, None), RespFrame::Integer(1));
 
         let ttl_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"TTL".to_vec())),
             RespFrame::BulkString(Some(b"k1".to_vec())),
         ]));
-        let res = dispatch(ttl_frame.clone(), Arc::clone(&db), None);
+        let res = dispatch(ttl_frame.clone(), Arc::clone(&db), None, None);
         assert!(matches!(res, RespFrame::Integer(_)));
 
         sleep(Duration::from_millis(60));
 
-        assert_eq!(dispatch(ttl_frame, Arc::clone(&db), None), RespFrame::Integer(-2));
+        assert_eq!(dispatch(ttl_frame, Arc::clone(&db), None, None), RespFrame::Integer(-2));
     }
 
     #[test]
@@ -233,14 +247,14 @@ mod tests {
             RespFrame::BulkString(Some(b"a".to_vec())),
             RespFrame::BulkString(Some(b"b".to_vec())),
         ]));
-        assert_eq!(dispatch(rpush_frame, Arc::clone(&db), None), RespFrame::Integer(2));
+        assert_eq!(dispatch(rpush_frame, Arc::clone(&db), None, None), RespFrame::Integer(2));
 
         let lpush_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"LPUSH".to_vec())),
             RespFrame::BulkString(Some(b"mylist".to_vec())),
             RespFrame::BulkString(Some(b"first".to_vec())),
         ]));
-        assert_eq!(dispatch(lpush_frame, Arc::clone(&db), None), RespFrame::Integer(3));
+        assert_eq!(dispatch(lpush_frame, Arc::clone(&db), None, None), RespFrame::Integer(3));
 
         let lrange_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"LRANGE".to_vec())),
@@ -253,14 +267,14 @@ mod tests {
             RespFrame::BulkString(Some(b"a".to_vec())),
             RespFrame::BulkString(Some(b"b".to_vec())),
         ]));
-        assert_eq!(dispatch(lrange_frame, Arc::clone(&db), None), expected_lrange);
+        assert_eq!(dispatch(lrange_frame, Arc::clone(&db), None, None), expected_lrange);
 
         let lpop_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"LPOP".to_vec())),
             RespFrame::BulkString(Some(b"mylist".to_vec())),
         ]));
         assert_eq!(
-            dispatch(lpop_frame, Arc::clone(&db), None),
+            dispatch(lpop_frame, Arc::clone(&db), None, None),
             RespFrame::BulkString(Some(b"first".to_vec()))
         );
 
@@ -269,7 +283,7 @@ mod tests {
             RespFrame::BulkString(Some(b"mylist".to_vec())),
         ]));
         assert_eq!(
-            dispatch(rpop_frame, Arc::clone(&db), None),
+            dispatch(rpop_frame, Arc::clone(&db), None, None),
             RespFrame::BulkString(Some(b"b".to_vec()))
         );
     }
@@ -286,7 +300,7 @@ mod tests {
             RespFrame::BulkString(Some(b"f2".to_vec())),
             RespFrame::BulkString(Some(b"v2".to_vec())),
         ]));
-        assert_eq!(dispatch(hset_frame, Arc::clone(&db), None), RespFrame::Integer(2));
+        assert_eq!(dispatch(hset_frame, Arc::clone(&db), None, None), RespFrame::Integer(2));
 
         let hget_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"HGET".to_vec())),
@@ -294,7 +308,7 @@ mod tests {
             RespFrame::BulkString(Some(b"f1".to_vec())),
         ]));
         assert_eq!(
-            dispatch(hget_frame, Arc::clone(&db), None),
+            dispatch(hget_frame, Arc::clone(&db), None, None),
             RespFrame::BulkString(Some(b"v1".to_vec()))
         );
 
@@ -303,13 +317,13 @@ mod tests {
             RespFrame::BulkString(Some(b"myhash".to_vec())),
             RespFrame::BulkString(Some(b"f1".to_vec())),
         ]));
-        assert_eq!(dispatch(hdel_frame, Arc::clone(&db), None), RespFrame::Integer(1));
+        assert_eq!(dispatch(hdel_frame, Arc::clone(&db), None, None), RespFrame::Integer(1));
 
         let hgetall_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"HGETALL".to_vec())),
             RespFrame::BulkString(Some(b"myhash".to_vec())),
         ]));
-        let res = dispatch(hgetall_frame, Arc::clone(&db), None);
+        let res = dispatch(hgetall_frame, Arc::clone(&db), None, None);
         match res {
             RespFrame::Array(Some(arr)) => assert_eq!(arr.len(), 2),
             _ => panic!("Expected array"),
@@ -326,20 +340,20 @@ mod tests {
             RespFrame::BulkString(Some(b"m1".to_vec())),
             RespFrame::BulkString(Some(b"m2".to_vec())),
         ]));
-        assert_eq!(dispatch(sadd_frame, Arc::clone(&db), None), RespFrame::Integer(2));
+        assert_eq!(dispatch(sadd_frame, Arc::clone(&db), None, None), RespFrame::Integer(2));
 
         let sismember_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"SISMEMBER".to_vec())),
             RespFrame::BulkString(Some(b"myset".to_vec())),
             RespFrame::BulkString(Some(b"m1".to_vec())),
         ]));
-        assert_eq!(dispatch(sismember_frame, Arc::clone(&db), None), RespFrame::Integer(1));
+        assert_eq!(dispatch(sismember_frame, Arc::clone(&db), None, None), RespFrame::Integer(1));
 
         let smembers_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"SMEMBERS".to_vec())),
             RespFrame::BulkString(Some(b"myset".to_vec())),
         ]));
-        match dispatch(smembers_frame, Arc::clone(&db), None) {
+        match dispatch(smembers_frame, Arc::clone(&db), None, None) {
             RespFrame::Array(Some(arr)) => assert_eq!(arr.len(), 2),
             _ => panic!("Expected array"),
         }
@@ -349,7 +363,7 @@ mod tests {
             RespFrame::BulkString(Some(b"myset".to_vec())),
             RespFrame::BulkString(Some(b"m1".to_vec())),
         ]));
-        assert_eq!(dispatch(srem_frame, Arc::clone(&db), None), RespFrame::Integer(1));
+        assert_eq!(dispatch(srem_frame, Arc::clone(&db), None, None), RespFrame::Integer(1));
     }
 
     #[test]
@@ -364,7 +378,7 @@ mod tests {
             RespFrame::BulkString(Some(b"20".to_vec())),
             RespFrame::BulkString(Some(b"two".to_vec())),
         ]));
-        assert_eq!(dispatch(zadd_frame, Arc::clone(&db), None), RespFrame::Integer(2));
+        assert_eq!(dispatch(zadd_frame, Arc::clone(&db), None, None), RespFrame::Integer(2));
 
         let zscore_frame = RespFrame::Array(Some(vec![
             RespFrame::BulkString(Some(b"ZSCORE".to_vec())),
@@ -372,7 +386,7 @@ mod tests {
             RespFrame::BulkString(Some(b"two".to_vec())),
         ]));
         assert_eq!(
-            dispatch(zscore_frame, Arc::clone(&db), None),
+            dispatch(zscore_frame, Arc::clone(&db), None, None),
             RespFrame::BulkString(Some(b"20".to_vec()))
         );
 
@@ -389,6 +403,6 @@ mod tests {
             RespFrame::BulkString(Some(b"two".to_vec())),
             RespFrame::BulkString(Some(b"20".to_vec())),
         ]));
-        assert_eq!(dispatch(zrange_frame, Arc::clone(&db), None), expected_zrange);
+        assert_eq!(dispatch(zrange_frame, Arc::clone(&db), None, None), expected_zrange);
     }
 }
