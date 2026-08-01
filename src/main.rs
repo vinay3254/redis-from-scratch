@@ -191,17 +191,14 @@ fn handle_connection(
 }
 
 fn main() {
-    let mut db_instance = if Path::new("dump.rdb").exists() {
-        match persistence::rdb::load_db("dump.rdb") {
-            Ok(loaded_db) => loaded_db,
-            Err(_) => Db::new(),
-        }
-    } else {
-        Db::new()
-    };
+    let mut db_instance = Db::new();
 
     if Path::new("appendonly.aof").exists() {
         Aof::replay("appendonly.aof", &mut db_instance).ok();
+    } else if Path::new("dump.rdb").exists() {
+        if let Ok(loaded_db) = persistence::rdb::load_db("dump.rdb") {
+            db_instance = loaded_db;
+        }
     }
 
     let db = Arc::new(Mutex::new(db_instance));
