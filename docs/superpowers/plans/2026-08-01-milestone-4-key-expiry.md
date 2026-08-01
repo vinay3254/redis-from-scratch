@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 4: Key Expiry Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists (commit `b0429a3`). This plan documents what it must deliver so the implementation can be verified against it, rather than rewritten from scratch.
 
@@ -28,7 +28,7 @@
 - Produces: `Db::check_expired(&mut self, key: &[u8]) -> bool` (private), `Db::set_expire(&mut self, key: &[u8], duration: Duration) -> bool`, `Db::ttl(&mut self, key: &[u8]) -> i64`, `Db::purge_expired(&mut self) -> usize`.
 - Consumes: `Db::entries` (Task in Milestone 3).
 
-- [ ] **Step 1: Confirm the expirations map and check_expired**
+- [x] **Step 1: Confirm the expirations map and check_expired**
 
 Read `src/db.rs`. Confirm:
 
@@ -56,7 +56,7 @@ fn check_expired(&mut self, key: &[u8]) -> bool {
 
 Confirm every read path (`get`, `hget`, `lrange`, `sismember`, `zscore`, etc.) calls `check_expired` before looking at `entries`, and that `set` clears any prior expiration (`self.expirations.remove(&key)`) — otherwise a `SET` on an already-expiring key would incorrectly keep the old TTL.
 
-- [ ] **Step 2: Confirm set_expire and ttl**
+- [x] **Step 2: Confirm set_expire and ttl**
 
 ```rust
 pub fn set_expire(&mut self, key: &[u8], duration: Duration) -> bool {
@@ -89,7 +89,7 @@ pub fn ttl(&mut self, key: &[u8]) -> i64 {
 
 `set_expire` returns `false` (matching Redis's `EXPIRE` returning `0`) when the key doesn't exist.
 
-- [ ] **Step 3: Confirm the active sweep**
+- [x] **Step 3: Confirm the active sweep**
 
 ```rust
 pub fn purge_expired(&mut self) -> usize {
@@ -111,7 +111,7 @@ pub fn purge_expired(&mut self) -> usize {
 
 This is a full-scan sweep (not real Redis's probabilistic sampling), which is fine at this scale — note it as a simplification, not a bug.
 
-- [ ] **Step 4: Run unit tests**
+- [x] **Step 4: Run unit tests**
 
 ```bash
 cargo test db::tests::test_expiry db::tests::test_purge_expired
@@ -130,7 +130,7 @@ Expected: both pass, including the sleep-then-assert-expired pattern.
 **Interfaces:**
 - Produces: `pub fn expire(db: &mut Db, args: &[Vec<u8>]) -> RespFrame`, `pub fn pexpire(...)`, `pub fn ttl(...)`.
 
-- [ ] **Step 1: Confirm the command handlers**
+- [x] **Step 1: Confirm the command handlers**
 
 ```rust
 pub fn expire(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -148,7 +148,7 @@ pub fn expire(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 
 `pexpire` is identical but parses milliseconds and calls `Duration::from_millis`. `ttl` is a thin wrapper returning `RespFrame::Integer(db.ttl(&args[0]))`.
 
-- [ ] **Step 2: Confirm the active-sweep thread in main()**
+- [x] **Step 2: Confirm the active-sweep thread in main()**
 
 Read `src/main.rs`. Confirm:
 
@@ -163,7 +163,7 @@ thread::spawn(move || loop {
 
 spawned before the `TcpListener::bind` call, so it's running for the lifetime of the process.
 
-- [ ] **Step 3: Manually verify passive expiration**
+- [x] **Step 3: Manually verify passive expiration**
 
 ```bash
 redis-cli -p 6380 SET k v
@@ -176,11 +176,11 @@ redis-cli -p 6380 EXISTS k
 
 Expected: `TTL` shows `0` (rounds down from ~0.2s), `GET` after the wait returns `(nil)`, `EXISTS` returns `0`.
 
-- [ ] **Step 4: Manually verify active sweep (key removed without being accessed)**
+- [x] **Step 4: Manually verify active sweep (key removed without being accessed)**
 
 There's no `DBSIZE`/`KEYS` command in this clone to observe internal key count directly, so verify indirectly: set a short-lived key, wait well past its expiry and past the 100ms sweep interval, then restart the server and confirm `dump.rdb`/AOF replay don't resurrect it (this is exercised concretely in Milestone 9's plan). For now, confirm via logs/behavior that a `GET` immediately after the sweep interval has elapsed returns `(nil)` without needing multiple probes — this alone confirms `check_expired` and `purge_expired` agree on the same expiry instant.
 
-- [ ] **Step 5: Manually verify TTL edge cases**
+- [x] **Step 5: Manually verify TTL edge cases**
 
 ```bash
 redis-cli -p 6380 SET permanent v

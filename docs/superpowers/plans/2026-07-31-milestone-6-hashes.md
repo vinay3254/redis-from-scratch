@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 6: Hashes Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement Redis Hash data structure (`Value::Hash(HashMap<Vec<u8>, Vec<u8>>)`) and hash commands (`HSET`, `HGET`, `HGETALL`, `HDEL`).
 
@@ -22,14 +22,14 @@
 
 ### Task 1: Update `src/db.rs` with `Value::Hash` and hash operations
 
-- [ ] **Step 1: Update `Value` enum and implement `hset`, `hget`, `hgetall`, `hdel` in `Db`**
-- [ ] **Step 2: Add unit tests for hash operations in `src/db.rs`**
+- [x] **Step 1: Update `Value` enum and implement `hset`, `hget`, `hgetall`, `hdel` in `Db`**
+- [x] **Step 2: Add unit tests for hash operations in `src/db.rs`**
 
 ---
 
 ### Task 2: Implement hash commands in `src/commands/hash.rs`
 
-- [ ] **Step 1: Create `src/commands/hash.rs` with command handlers**
-- [ ] **Step 2: Register handlers in `src/commands/mod.rs` dispatcher**
-- [ ] **Step 3: Add unit tests for hash commands in `src/commands/mod.rs`**
-- [ ] **Step 4: Verify all tests pass with `cargo test`**
+- [x] **Step 1: Create `src/commands/hash.rs` with command handlers**
+- [x] **Step 2: Register handlers in `src/commands/mod.rs` dispatcher**
+- [x] **Step 3: Add unit tests for hash commands in `src/commands/mod.rs`**
+- [x] **Step 4: Verify all tests pass with `cargo test`**

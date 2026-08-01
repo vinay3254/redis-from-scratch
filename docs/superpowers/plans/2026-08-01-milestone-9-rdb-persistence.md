@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 9: RDB Persistence Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists (commit `481e6a2`). This plan documents what it must deliver so the implementation can be verified against it, rather than rewritten from scratch.
 
@@ -29,7 +29,7 @@
 **Interfaces:**
 - Produces: `pub fn dump_db(db: &Db, path: &str) -> std::io::Result<()>`, `Db::snapshot_entries(&self) -> Vec<(Vec<u8>, Value, Option<Duration>)>`.
 
-- [ ] **Step 1: Confirm snapshot_entries skips expired keys and converts to relative duration**
+- [x] **Step 1: Confirm snapshot_entries skips expired keys and converts to relative duration**
 
 ```rust
 pub fn snapshot_entries(&self) -> Vec<(Vec<u8>, Value, Option<Duration>)> {
@@ -52,11 +52,11 @@ pub fn snapshot_entries(&self) -> Vec<(Vec<u8>, Value, Option<Duration>)> {
 
 A key whose expiry has already passed is silently excluded (it's logically gone; there's no reason to persist it) rather than persisted with `Some(Duration::ZERO)` or similar, which would be a subtly different (and wrong) signal on reload.
 
-- [ ] **Step 2: Confirm dump_db writes one tagged record per key, per Value variant**
+- [x] **Step 2: Confirm dump_db writes one tagged record per key, per Value variant**
 
 Read `src/persistence/rdb.rs`. Confirm every `Value` variant (`String`, `List`, `Hash`, `Set`, `ZSet`) has a corresponding write arm using a distinct type tag (`TYPE_STRING = 1` through `TYPE_ZSET = 5`), each writing: tag byte → key (length-prefixed) → expiry flag+value → type-specific payload (e.g. list: count then each element; hash: count then field/value pairs). Confirm the file ends with a single `EOF_TAG` (`0xFF`) byte after the last record.
 
-- [ ] **Step 3: Run the round-trip unit test**
+- [x] **Step 3: Run the round-trip unit test**
 
 ```bash
 cargo test persistence::rdb::tests::test_rdb_roundtrip
@@ -76,7 +76,7 @@ Expected: pass — this test already covers one key of each type plus an expirin
 **Interfaces:**
 - Produces: `pub fn load_db(path: &str) -> std::io::Result<Db>`, `pub fn save(db: &Db, args: &[Vec<u8>]) -> RespFrame`, `pub fn bgsave(db: Arc<Mutex<Db>>, args: &[Vec<u8>]) -> RespFrame`.
 
-- [ ] **Step 1: Confirm load_db validates the header before trusting the rest of the file**
+- [x] **Step 1: Confirm load_db validates the header before trusting the rest of the file**
 
 ```rust
 let mut header = [0u8; 18];
@@ -88,7 +88,7 @@ if header != RDB_HEADER {
 
 `RDB_HEADER` is `b"REDIS_CLONE_RDB_V1"` (18 bytes) — confirm the buffer size (`18`) actually matches the header's byte length; a mismatch here would silently misparse every file.
 
-- [ ] **Step 2: Confirm load_db re-applies expiry via set_expire after inserting the value**
+- [x] **Step 2: Confirm load_db re-applies expiry via set_expire after inserting the value**
 
 ```rust
 if let Some(dur) = expiry {
@@ -98,7 +98,7 @@ if let Some(dur) = expiry {
 
 This runs *after* the type-specific `db.set(key.clone(), Value::...)` call for that record — confirm the ordering, since `set_expire` requires the key to already exist in `entries` (it returns `false` otherwise, per Milestone 4's `Db::set_expire`).
 
-- [ ] **Step 3: Confirm SAVE is synchronous and BGSAVE spawns a thread**
+- [x] **Step 3: Confirm SAVE is synchronous and BGSAVE spawns a thread**
 
 ```rust
 pub fn save(db: &Db, args: &[Vec<u8>]) -> RespFrame {
@@ -125,7 +125,7 @@ pub fn bgsave(db: Arc<Mutex<Db>>, args: &[Vec<u8>]) -> RespFrame {
 
 `bgsave` returns immediately with `"Background saving started"` without waiting for the spawned thread — confirm the response doesn't accidentally block on the thread (e.g. via `.join()`), which would defeat the point of it being "background."
 
-- [ ] **Step 4: Run unit tests**
+- [x] **Step 4: Run unit tests**
 
 ```bash
 cargo test persistence::rdb::tests
@@ -133,7 +133,7 @@ cargo test persistence::rdb::tests
 
 Expected: pass.
 
-- [ ] **Step 5: Manually verify SAVE + restart round-trips all 5 data types and expiry**
+- [x] **Step 5: Manually verify SAVE + restart round-trips all 5 data types and expiry**
 
 ```bash
 redis-cli -p 6380 SET str_key hello
@@ -158,7 +158,7 @@ redis-cli -p 6380 ZSCORE zset_key z1
 
 Expected: every value survives the restart, and `TTL str_key` shows a number close to (but slightly less than) `300` — proving the expiry was correctly converted to a relative duration on save and reconstituted on load, not reset or lost.
 
-- [ ] **Step 6: Manually verify BGSAVE doesn't block the client**
+- [x] **Step 6: Manually verify BGSAVE doesn't block the client**
 
 ```bash
 redis-cli -p 6380 BGSAVE

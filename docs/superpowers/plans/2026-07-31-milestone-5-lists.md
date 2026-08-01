@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 5: Lists Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement Redis List data structure (`Value::List(VecDeque<Vec<u8>>)`) and list commands (`LPUSH`, `RPUSH`, `LPOP`, `RPOP`, `LRANGE`).
 
@@ -22,14 +22,14 @@
 
 ### Task 1: Update `src/db.rs` with `Value::List` and list operations
 
-- [ ] **Step 1: Update `Value` enum and implement `lpush`, `rpush`, `lpop`, `rpop`, `lrange` in `Db`**
-- [ ] **Step 2: Add unit tests for list operations in `src/db.rs`**
+- [x] **Step 1: Update `Value` enum and implement `lpush`, `rpush`, `lpop`, `rpop`, `lrange` in `Db`**
+- [x] **Step 2: Add unit tests for list operations in `src/db.rs`**
 
 ---
 
 ### Task 2: Implement list commands in `src/commands/list.rs`
 
-- [ ] **Step 1: Create `src/commands/list.rs` with command handlers**
-- [ ] **Step 2: Register handlers in `src/commands/mod.rs` dispatcher**
-- [ ] **Step 3: Add unit tests for list commands in `src/commands/mod.rs`**
-- [ ] **Step 4: Verify all tests pass with `cargo test`**
+- [x] **Step 1: Create `src/commands/list.rs` with command handlers**
+- [x] **Step 2: Register handlers in `src/commands/mod.rs` dispatcher**
+- [x] **Step 3: Add unit tests for list commands in `src/commands/mod.rs`**
+- [x] **Step 4: Verify all tests pass with `cargo test`**

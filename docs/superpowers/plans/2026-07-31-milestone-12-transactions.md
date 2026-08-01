@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 12: Basic Transactions Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement Redis transaction management (`src/commands/tx.rs`), connection command queueing, `MULTI`, `EXEC`, `DISCARD`, and atomic batch execution.
 
@@ -22,21 +22,21 @@
 
 ### Task 1: Create `src/commands/tx.rs` engine
 
-- [ ] **Step 1: Write `src/commands/tx.rs` with `exec` helper**
-- [ ] **Step 2: Update `src/commands/mod.rs` to export `tx`**
+- [x] **Step 1: Write `src/commands/tx.rs` with `exec` helper**
+- [x] **Step 2: Update `src/commands/mod.rs` to export `tx`**
 
 ---
 
 ### Task 2: Implement transaction state loop in `src/main.rs`
 
-- [ ] **Step 1: Update `handle_connection` in `src/main.rs` to track `in_transaction` and `tx_queue`**
-- [ ] **Step 2: Handle `MULTI`, `EXEC`, `DISCARD`, and command queueing (`+QUEUED\r\n`)**
-- [ ] **Step 3: Add unit tests for transactions**
-- [ ] **Step 4: Verify with `cargo test`**
+- [x] **Step 1: Update `handle_connection` in `src/main.rs` to track `in_transaction` and `tx_queue`**
+- [x] **Step 2: Handle `MULTI`, `EXEC`, `DISCARD`, and command queueing (`+QUEUED\r\n`)**
+- [x] **Step 3: Add unit tests for transactions**
+- [x] **Step 4: Verify with `cargo test`**
 
 ---
 
 ### Task 3: Push branch and open final GitHub PR
 
-- [ ] **Step 1: Push `phase-12/transactions` to GitHub**
-- [ ] **Step 2: Open PR #12 against `phase-11/pubsub`**
+- [x] **Step 1: Push `phase-12/transactions` to GitHub**
+- [x] **Step 2: Open PR #12 against `phase-11/pubsub`**

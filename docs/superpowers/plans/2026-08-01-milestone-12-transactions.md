@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 12: Transactions Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists (commit `26ed3d0`), and is the last of the 12 original milestones. This plan documents what it must deliver so the implementation can be verified against it, rather than rewritten from scratch.
 
@@ -31,7 +31,7 @@
 - Consumes: `commands::tx::exec` (Task 2).
 - Produces: per-connection `in_transaction: bool`, `tx_queue: Vec<RespFrame>` local state.
 
-- [ ] **Step 1: Confirm MULTI rejects nesting and resets the queue**
+- [x] **Step 1: Confirm MULTI rejects nesting and resets the queue**
 
 ```rust
 if cmd_name == "MULTI" {
@@ -49,7 +49,7 @@ if cmd_name == "MULTI" {
 
 `tx_queue.clear()` on a fresh `MULTI` is defensive (it should already be empty if the state machine is correct elsewhere) — confirm it's there anyway, since leftover queued commands from a prior mishandled sequence would otherwise silently execute inside a later transaction.
 
-- [ ] **Step 2: Confirm DISCARD and the "no MULTI in progress" error cases for both DISCARD and EXEC**
+- [x] **Step 2: Confirm DISCARD and the "no MULTI in progress" error cases for both DISCARD and EXEC**
 
 ```rust
 } else if cmd_name == "DISCARD" {
@@ -67,7 +67,7 @@ if cmd_name == "MULTI" {
 
 Confirm the equivalent `!in_transaction` guard exists for `EXEC` too (`ERR EXEC without MULTI`).
 
-- [ ] **Step 3: Confirm any other command while in_transaction is queued, not executed**
+- [x] **Step 3: Confirm any other command while in_transaction is queued, not executed**
 
 ```rust
 } else if in_transaction {
@@ -81,7 +81,7 @@ Confirm the equivalent `!in_transaction` guard exists for `EXEC` too (`ERR EXEC 
 
 This branch must come *before* the normal dispatch branch in the if/else chain (checked only after ruling out `MULTI`/`DISCARD`/`EXEC` specifically) — confirm the ordering, since if it came after dispatch, queued commands would be executed immediately instead of deferred.
 
-- [ ] **Step 4: Confirm EXEC takes the queue, calls tx::exec once, and resets in_transaction before executing**
+- [x] **Step 4: Confirm EXEC takes the queue, calls tx::exec once, and resets in_transaction before executing**
 
 ```rust
 } else if cmd_name == "EXEC" {
@@ -111,7 +111,7 @@ This branch must come *before* the normal dispatch branch in the if/else chain (
 **Interfaces:**
 - Produces: `pub fn exec(tx_queue: Vec<RespFrame>, db: Arc<Mutex<Db>>, pubsub: Option<Arc<Mutex<PubSub>>>, aof: Option<&Aof>) -> RespFrame`.
 
-- [ ] **Step 1: Confirm the DB lock is acquired exactly once, outside the per-command loop**
+- [x] **Step 1: Confirm the DB lock is acquired exactly once, outside the per-command loop**
 
 ```rust
 pub fn exec(tx_queue: Vec<RespFrame>, db: Arc<Mutex<Db>>, pubsub: Option<Arc<Mutex<PubSub>>>, aof: Option<&Aof>) -> RespFrame {
@@ -131,7 +131,7 @@ pub fn exec(tx_queue: Vec<RespFrame>, db: Arc<Mutex<Db>>, pubsub: Option<Arc<Mut
 
 `db.lock()` happens once before the loop, and every queued command reuses the same `db_guard` via `dispatch_mutating` (not `dispatch`, which would try to lock again and deadlock) — confirm this is the actual call, not `super::dispatch`.
 
-- [ ] **Step 2: Confirm PUBLISH inside a transaction is special-cased the same way EXEC's caller special-cases SUBSCRIBE**
+- [x] **Step 2: Confirm PUBLISH inside a transaction is special-cased the same way EXEC's caller special-cases SUBSCRIBE**
 
 ```rust
 if cmd_name == "PUBLISH" {
@@ -156,7 +156,7 @@ if cmd_name == "PUBLISH" {
 
 `PUBLISH` doesn't go through `dispatch_mutating` (which has no `PubSub` access) — confirm this branch exists and `continue`s past the normal dispatch call for that iteration, so `PUBLISH` isn't *also* run through `dispatch_mutating` afterward (which would either double-publish or hit an "unknown command" fallthrough, depending on whether `dispatch_mutating` recognizes `PUBLISH` at all — it should not).
 
-- [ ] **Step 3: Confirm per-command success/failure doesn't abort the batch, and AOF logging happens per-command**
+- [x] **Step 3: Confirm per-command success/failure doesn't abort the batch, and AOF logging happens per-command**
 
 ```rust
 let result = super::dispatch_mutating(frame.clone(), &mut db_guard);
@@ -171,7 +171,7 @@ results.push(result);
 
 The loop always continues to the next queued frame regardless of whether `result` was an error — confirm there's no early `return`/`break` on error.
 
-- [ ] **Step 4: Run unit test**
+- [x] **Step 4: Run unit test**
 
 ```bash
 cargo test commands::tx::tests::test_exec_atomic
@@ -179,7 +179,7 @@ cargo test commands::tx::tests::test_exec_atomic
 
 Expected: pass.
 
-- [ ] **Step 5: Manually verify the full MULTI/EXEC happy path, in a single persistent connection**
+- [x] **Step 5: Manually verify the full MULTI/EXEC happy path, in a single persistent connection**
 
 `redis-cli`'s interactive/heredoc mode keeps one connection open across multiple lines, which is required here (separate `redis-cli` invocations are separate connections with independent transaction state):
 
@@ -196,7 +196,7 @@ EOF
 
 Expected: `OK` (MULTI), `QUEUED` ×2, then `EXEC` returns a 2-element array of `OK OK`, then `v1` and `v2` confirm both writes actually landed.
 
-- [ ] **Step 6: Manually verify DISCARD abandons the queue**
+- [x] **Step 6: Manually verify DISCARD abandons the queue**
 
 ```bash
 redis-cli -p 6380 <<'EOF'
@@ -209,7 +209,7 @@ EOF
 
 Expected: `OK`, `QUEUED`, `OK` (DISCARD), then `(nil)` — `tk3` was never actually set.
 
-- [ ] **Step 7: Manually verify the error-without-MULTI and nested-MULTI cases**
+- [x] **Step 7: Manually verify the error-without-MULTI and nested-MULTI cases**
 
 ```bash
 redis-cli -p 6380 EXEC
@@ -223,7 +223,7 @@ EOF
 
 Expected: `ERR EXEC without MULTI`, `ERR DISCARD without MULTI`, then `OK` / `ERR MULTI calls can not be nested` / `OK`.
 
-- [ ] **Step 8: Manually verify a failing command inside a transaction doesn't abort the rest**
+- [x] **Step 8: Manually verify a failing command inside a transaction doesn't abort the rest**
 
 ```bash
 redis-cli -p 6380 SET strkey hello

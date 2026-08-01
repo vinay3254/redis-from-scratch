@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 2: RESP2 Parser and Serializer Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement a complete RESP2 protocol parser and serializer in Rust (`src/resp.rs`) and integrate it into `src/main.rs` so the TCP server parses incoming client frames and echoes them back as RESP.
 
@@ -22,9 +22,9 @@
 **Files:**
 - Create: `src/resp.rs`
 
-- [ ] **Step 1: Write `src/resp.rs` frame definition, parser, serializer, and unit tests**
+- [x] **Step 1: Write `src/resp.rs` frame definition, parser, serializer, and unit tests**
 
-- [ ] **Step 2: Run unit tests**
+- [x] **Step 2: Run unit tests**
 
 ```bash
 cargo test
@@ -39,9 +39,9 @@ Expected: All tests in `src/resp.rs` pass.
 **Files:**
 - Modify: `src/main.rs`
 
-- [ ] **Step 1: Update connection handler to buffer bytes, parse frames, and echo RESP frames back**
+- [x] **Step 1: Update connection handler to buffer bytes, parse frames, and echo RESP frames back**
 
-- [ ] **Step 2: Build and run server**
+- [x] **Step 2: Build and run server**
 
 ```bash
 cargo check
@@ -51,6 +51,6 @@ cargo check
 
 ### Task 3: Manual Verification
 
-- [ ] **Step 1: Test with redis-cli**
+- [x] **Step 1: Test with redis-cli**
 
 Run `redis-cli -p 6380 PING` or interactive `redis-cli -p 6380` and send commands to verify echo behavior.

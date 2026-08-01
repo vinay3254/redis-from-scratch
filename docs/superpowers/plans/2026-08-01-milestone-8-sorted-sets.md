@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 8: Sorted Sets Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists (commit `62094d1`). This plan documents what it must deliver so the implementation can be verified against it, rather than rewritten from scratch. This is the milestone that most needs careful scrutiny: the skip list is hand-rolled with raw pointers and `unsafe` blocks, which is exactly where subtle bugs hide.
 
@@ -29,7 +29,7 @@
 **Interfaces:**
 - Produces: `SkipList::new() -> Self`, `insert(&mut self, score: f64, member: Vec<u8>) -> bool`, `remove(&mut self, score: f64, member: &[u8]) -> bool`, `get_range(&self, start: usize, stop: usize) -> Vec<(Vec<u8>, f64)>`, `len(&self) -> usize`. Also implements `Drop` (must free every node, no leaks) and `Clone` (must produce an independent copy, not aliased raw pointers).
 
-- [ ] **Step 1: Confirm insert doesn't allow duplicate (score, member) pairs**
+- [x] **Step 1: Confirm insert doesn't allow duplicate (score, member) pairs**
 
 Read `src/skiplist.rs`. Confirm `insert` checks whether the immediate successor at level 0 already matches `(score, member)` before creating a new node:
 
@@ -44,11 +44,11 @@ unsafe {
 
 This prevents `ZADD` from creating two nodes for the same member if called twice with the same score (the `Db::zadd` layer in Task 2 handles the *changed*-score case by calling `remove` first, but this guard protects the skip list itself against direct duplicate inserts).
 
-- [ ] **Step 2: Confirm remove correctly relinks every level and frees the node exactly once**
+- [x] **Step 2: Confirm remove correctly relinks every level and frees the node exactly once**
 
 Confirm the `remove` function's relinking loop only rewrites `forward[i]` on levels where `update[i]`'s forward pointer actually pointed at the removed node (not unconditionally, which would corrupt unrelated chains), and that `Box::from_raw(target)` is called exactly once per removed node.
 
-- [ ] **Step 3: Confirm Drop frees every node without double-freeing the head**
+- [x] **Step 3: Confirm Drop frees every node without double-freeing the head**
 
 ```rust
 impl Drop for SkipList {
@@ -66,7 +66,7 @@ impl Drop for SkipList {
 
 Walks the level-0 chain (which threads through every node regardless of its height) freeing each one, then frees the sentinel head separately — confirm this ordering (data nodes first, then head) is what's there.
 
-- [ ] **Step 4: Run the existing unit test, then stress-test with more data than the built-in test covers**
+- [x] **Step 4: Run the existing unit test, then stress-test with more data than the built-in test covers**
 
 ```bash
 cargo test skiplist::tests
@@ -108,7 +108,7 @@ Run it with `cargo test test_skiplist_stress -- --nocapture`, then run the full 
 **Interfaces:**
 - Produces: `pub struct ZSet { pub dict: HashMap<Vec<u8>, f64>, pub skiplist: SkipList }`, `Value::ZSet(ZSet)`, `Db::zadd(&mut self, key: &[u8], pairs: &[(f64, Vec<u8>)]) -> Result<usize, ()>`, `Db::zscore(&mut self, key: &[u8], member: &[u8]) -> Result<Option<f64>, ()>`, `Db::zrange(&mut self, key: &[u8], start: i64, stop: i64) -> Result<Vec<(Vec<u8>, f64)>, ()>`.
 
-- [ ] **Step 1: Confirm zadd handles both new members and score updates**
+- [x] **Step 1: Confirm zadd handles both new members and score updates**
 
 ```rust
 pub fn zadd(&mut self, key: &[u8], pairs: &[(f64, Vec<u8>)]) -> Result<usize, ()> {
@@ -142,7 +142,7 @@ pub fn zadd(&mut self, key: &[u8], pairs: &[(f64, Vec<u8>)]) -> Result<usize, ()
 
 The critical detail: when a member's score changes, the *old* `(old_score, member)` node must be removed from the skip list before the *new* `(score, member)` node is inserted — otherwise the skip list would end up with two entries for the same member (one stale). Confirm this remove-then-insert ordering is present, not just a blind insert.
 
-- [ ] **Step 2: Confirm zrange reuses normalize_indices from Milestone 5**
+- [x] **Step 2: Confirm zrange reuses normalize_indices from Milestone 5**
 
 ```rust
 pub fn zrange(&mut self, key: &[u8], start: i64, stop: i64) -> Result<Vec<(Vec<u8>, f64)>, ()> {
@@ -158,7 +158,7 @@ pub fn zrange(&mut self, key: &[u8], start: i64, stop: i64) -> Result<Vec<(Vec<u
 }
 ```
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 ```bash
 cargo test db::tests::test_zset_operations
@@ -177,7 +177,7 @@ Expected: pass.
 **Interfaces:**
 - Produces: `pub fn zadd(db: &mut Db, args: &[Vec<u8>]) -> RespFrame`, `zscore`, `zrange`.
 
-- [ ] **Step 1: Confirm ZADD parses scores as floats and validates pair count**
+- [x] **Step 1: Confirm ZADD parses scores as floats and validates pair count**
 
 ```rust
 pub fn zadd(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -200,7 +200,7 @@ pub fn zadd(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 }
 ```
 
-- [ ] **Step 2: Confirm ZRANGE's optional WITHSCORES flag**
+- [x] **Step 2: Confirm ZRANGE's optional WITHSCORES flag**
 
 ```rust
 let with_scores = if args.len() == 4 {
@@ -215,7 +215,7 @@ let with_scores = if args.len() == 4 {
 
 A 4th argument that isn't (case-insensitively) `WITHSCORES` is a syntax error, not silently ignored.
 
-- [ ] **Step 3: Confirm ZSCORE serializes the float as a bulk string**
+- [x] **Step 3: Confirm ZSCORE serializes the float as a bulk string**
 
 ```rust
 pub fn zscore(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -232,7 +232,7 @@ pub fn zscore(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 
 Real Redis also returns scores as strings (RESP2 has no float type), so `score.to_string()` is the right approach, not a shortcut.
 
-- [ ] **Step 4: Run unit tests**
+- [x] **Step 4: Run unit tests**
 
 ```bash
 cargo test commands::tests::test_zset_commands
@@ -240,7 +240,7 @@ cargo test commands::tests::test_zset_commands
 
 Expected: pass.
 
-- [ ] **Step 5: Manually verify ordering, WITHSCORES, and score updates**
+- [x] **Step 5: Manually verify ordering, WITHSCORES, and score updates**
 
 ```bash
 redis-cli -p 6380 ZADD myzset 3 c 1 a 2 b
@@ -253,7 +253,7 @@ redis-cli -p 6380 ZRANGE myzset 0 -1
 
 Expected: despite insertion order `c, a, b`, `ZRANGE 0 -1` returns `a b c` (sorted by score). `WITHSCORES` interleaves member/score pairs. After re-scoring `c` to `0.5`, `ZRANGE` returns `c a b` (c moved to the front) — this specifically exercises the remove-then-reinsert path from Task 2 Step 1.
 
-- [ ] **Step 6: Manually verify ZADD's new-vs-updated return count**
+- [x] **Step 6: Manually verify ZADD's new-vs-updated return count**
 
 ```bash
 redis-cli -p 6380 ZADD myzset 99 c 100 newmember

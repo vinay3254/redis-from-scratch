@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 10: AOF Persistence Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists (commit `f073176`). This plan documents what it must deliver so the implementation can be verified against it, rather than rewritten from scratch. **A real bug was found and fixed at this milestone's boundary with Milestone 9** — see Task 3 below, which is the regression test for it. Do not skip Task 3.
 
@@ -28,7 +28,7 @@
 **Interfaces:**
 - Produces: `pub struct Aof { ... }`, `Aof::open(path: &str) -> std::io::Result<Self>`, `Aof::append(&self, frame: &RespFrame) -> std::io::Result<()>`, `Aof::replay(path: &str, db: &mut Db) -> std::io::Result<()>` (associated function, not a method — it takes a fresh path and an external `&mut Db` rather than operating on `self`, since replay happens once at boot before any `Aof` instance is even needed for live appends).
 
-- [ ] **Step 1: Confirm Aof::open uses create+append+read, and append flushes**
+- [x] **Step 1: Confirm Aof::open uses create+append+read, and append flushes**
 
 ```rust
 pub fn open(path: &str) -> std::io::Result<Self> {
@@ -46,7 +46,7 @@ pub fn append(&self, frame: &RespFrame) -> std::io::Result<()> {
 
 `append` calls `.flush()` after every single write — this is a durability-over-throughput choice (real Redis's `appendfsync always` mode, the safest but slowest option) rather than batching. Confirm this is intentional in the current design, not an oversight — for a learning project prioritizing correctness, always-flush is the right default; if performance ever becomes a concern, that's a deliberate future tradeoff, not a bug to silently fix here.
 
-- [ ] **Step 2: Confirm replay parses frames incrementally, not by loading the whole file into one buffer and calling parse once**
+- [x] **Step 2: Confirm replay parses frames incrementally, not by loading the whole file into one buffer and calling parse once**
 
 ```rust
 pub fn replay(path: &str, db: &mut Db) -> std::io::Result<()> {
@@ -79,7 +79,7 @@ pub fn replay(path: &str, db: &mut Db) -> std::io::Result<()> {
 
 This mirrors the same incremental-parse-and-drain pattern used in `main.rs`'s connection loop (Milestone 2/3), reused here for replay instead of a live socket. Confirm a parse error (`Err(_)`) breaks the inner loop rather than propagating — a single malformed trailing record (e.g. from a crash mid-write) shouldn't prevent replaying everything that came before it.
 
-- [ ] **Step 3: Run unit test**
+- [x] **Step 3: Run unit test**
 
 ```bash
 cargo test persistence::aof::tests::test_aof_append_and_replay
@@ -99,7 +99,7 @@ Expected: pass.
 - Consumes: `Aof::append` (Task 1).
 - Produces: `pub fn is_write_command(cmd_name: &str) -> bool`.
 
-- [ ] **Step 1: Confirm dispatch only appends on success, for write commands, after executing**
+- [x] **Step 1: Confirm dispatch only appends on success, for write commands, after executing**
 
 ```rust
 let response = {
@@ -117,7 +117,7 @@ if let RespFrame::Error(_) = &response {
 
 The append happens strictly after `dispatch_mutating` returns and only when the response isn't an error — confirm this ordering (execute-then-log, not log-then-execute), since logging a command that then fails would corrupt future replays.
 
-- [ ] **Step 2: Confirm the same success/write-command gating exists independently in commands::tx::exec**
+- [x] **Step 2: Confirm the same success/write-command gating exists independently in commands::tx::exec**
 
 `MULTI`/`EXEC` bypasses the normal `dispatch` function (it needs to hold the DB lock across the whole queued batch, not per-command), so it has its own copy of the same logic:
 
@@ -133,7 +133,7 @@ if let RespFrame::Error(_) = &result {
 
 Confirm this exists in `src/commands/tx.rs::exec` and matches the same success/write-command gating as Task 2 Step 1 — since this is a second, independently-maintained copy of the same rule (not a shared helper), it's a spot where the two copies could drift out of sync if one is edited without the other.
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 ```bash
 cargo test commands::tests commands::tx::tests
@@ -151,7 +151,7 @@ Expected: pass.
 **Interfaces:**
 - Consumes: `Aof::replay`, `persistence::rdb::load_db` (Milestone 9).
 
-- [ ] **Step 1: Confirm main() prefers AOF and only falls back to RDB**
+- [x] **Step 1: Confirm main() prefers AOF and only falls back to RDB**
 
 ```rust
 let mut db_instance = Db::new();
@@ -167,7 +167,7 @@ if Path::new("appendonly.aof").exists() {
 
 This is the fixed version (commit `c552716`). If you're checking this against an older checkout, the broken version instead unconditionally loaded RDB *then* replayed AOF on top regardless of whether RDB was loaded — confirm the current code does NOT do that.
 
-- [ ] **Step 2: Regression-test the exact bug that was found — isolated repro**
+- [x] **Step 2: Regression-test the exact bug that was found — isolated repro**
 
 ```bash
 # from a clean state (no dump.rdb, no appendonly.aof)
@@ -186,7 +186,7 @@ redis-cli -p 6380 LRANGE testlist 0 -1
 
 Expected: still `a b c` (3 elements) — **not** `a b c a b c` (6 elements). If you see 6 elements, the bug has regressed; check Step 1's boot logic first.
 
-- [ ] **Step 3: Verify the RDB-only fallback path still works when no AOF file exists**
+- [x] **Step 3: Verify the RDB-only fallback path still works when no AOF file exists**
 
 ```bash
 # stop the server

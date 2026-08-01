@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 11: Pub/Sub Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists (commit `9b58bd3`). This plan documents what it must deliver so the implementation can be verified against it, rather than rewritten from scratch. This is the milestone with the trickiest concurrency: a subscribed connection needs to both keep reading commands from its own socket *and* receive asynchronously-published messages from other connections' threads.
 
@@ -28,7 +28,7 @@
 **Interfaces:**
 - Produces: `pub struct PubSub { ... }`, `PubSub::new() -> Self`, `generate_client_id(&mut self) -> u64`, `publish(&mut self, channel: &[u8], message: &[u8]) -> usize`, `subscribe(&mut self, client_id: u64, requested_channels: &[Vec<u8>], tx: mpsc::Sender<RespFrame>) -> Vec<RespFrame>`, `unsubscribe(&mut self, client_id: u64, requested_channels: &[Vec<u8>]) -> Vec<RespFrame>`, `remove_client(&mut self, client_id: u64)`.
 
-- [ ] **Step 1: Confirm publish's exact message frame shape and dead-subscriber pruning**
+- [x] **Step 1: Confirm publish's exact message frame shape and dead-subscriber pruning**
 
 ```rust
 pub fn publish(&mut self, channel: &[u8], message: &[u8]) -> usize {
@@ -57,7 +57,7 @@ pub fn publish(&mut self, channel: &[u8], message: &[u8]) -> usize {
 
 Confirm dead clients are collected during iteration and removed *after* (not during, which would be a mutable-borrow-while-iterating error in Rust anyway, but worth confirming the two-pass structure is there for the right reason).
 
-- [ ] **Step 2: Confirm subscribe returns one confirmation frame per channel with the running subscription count**
+- [x] **Step 2: Confirm subscribe returns one confirmation frame per channel with the running subscription count**
 
 ```rust
 pub fn subscribe(&mut self, client_id: u64, requested_channels: &[Vec<u8>], tx: mpsc::Sender<RespFrame>) -> Vec<RespFrame> {
@@ -79,7 +79,7 @@ pub fn subscribe(&mut self, client_id: u64, requested_channels: &[Vec<u8>], tx: 
 
 The `count` in each confirmation is the client's *total* subscription count after that channel is added (so `SUBSCRIBE ch1 ch2` yields counts `1` then `2`), not the channel's subscriber count — confirm this matches real Redis's semantics (the count is from the subscribing client's perspective).
 
-- [ ] **Step 3: Confirm unsubscribe with no arguments unsubscribes from everything, and the empty-subscription-list edge case**
+- [x] **Step 3: Confirm unsubscribe with no arguments unsubscribes from everything, and the empty-subscription-list edge case**
 
 ```rust
 let channels_to_unsub: Vec<Vec<u8>> = if requested_channels.is_empty() {
@@ -104,7 +104,7 @@ if channels_to_unsub.is_empty() {
 
 `UNSUBSCRIBE` (bare, no channel args) when the client has zero active subscriptions returns a single frame with a nil channel and count `0` — confirm this special case exists rather than returning an empty array (real Redis always sends at least one unsubscribe confirmation, even a vacuous one).
 
-- [ ] **Step 4: Confirm remove_client cleans up both directions of the map**
+- [x] **Step 4: Confirm remove_client cleans up both directions of the map**
 
 ```rust
 pub fn remove_client(&mut self, client_id: u64) {
@@ -123,7 +123,7 @@ pub fn remove_client(&mut self, client_id: u64) {
 
 Confirm a channel with zero remaining subscribers is removed from `self.channels` entirely (not left behind as an empty `HashMap`), so `self.channels` doesn't grow unboundedly across many short-lived subscriptions.
 
-- [ ] **Step 5: Run unit test**
+- [x] **Step 5: Run unit test**
 
 ```bash
 cargo test pubsub::tests::test_pubsub_basic
@@ -143,7 +143,7 @@ Expected: pass.
 - Produces: `pub fn publish(pubsub: &mut PubSub, args: &[Vec<u8>]) -> RespFrame` (command-layer wrapper).
 - Consumes: `PubSub` methods (Task 1).
 
-- [ ] **Step 1: Confirm the per-connection read-timeout + channel-drain poll loop**
+- [x] **Step 1: Confirm the per-connection read-timeout + channel-drain poll loop**
 
 Read `src/main.rs`'s `handle_connection`. Confirm:
 
@@ -173,15 +173,15 @@ loop {
 
 The read timeout is set unconditionally at connection start (not only after subscribing) — confirm this, since it means every connection (subscribed or not) polls in ~100ms slices rather than blocking forever on `read`. This is a deliberate tradeoff: it adds up to 100ms of latency to any command on an otherwise-idle connection, in exchange for letting a single thread handle both inbound commands and inbound pub/sub messages without needing a second thread or an async runtime.
 
-- [ ] **Step 2: Confirm SUBSCRIBE/UNSUBSCRIBE are intercepted before reaching the generic dispatch function**
+- [x] **Step 2: Confirm SUBSCRIBE/UNSUBSCRIBE are intercepted before reaching the generic dispatch function**
 
 Confirm `handle_connection` special-cases `cmd_name == "SUBSCRIBE"` and `cmd_name == "UNSUBSCRIBE"` directly (calling `pubsub.lock().unwrap().subscribe(...)` / `.unsubscribe(...)`) rather than routing them through `commands::dispatch`, since they need direct access to this connection's own `tx`/`client_id`/`is_subscribed` flag, which `dispatch` has no way to reach.
 
-- [ ] **Step 3: Confirm client_id is generated once per connection and cleaned up on every exit path**
+- [x] **Step 3: Confirm client_id is generated once per connection and cleaned up on every exit path**
 
 Confirm `ps.remove_client(client_id)` is called on every path out of the connection loop (socket closed, write error, parse error) — not just the graceful `Ok(0)` disconnect path. A client that drops mid-write should still be unregistered from `PubSub`, or `publish` would keep trying (and failing) to send to it until the next publish prunes it.
 
-- [ ] **Step 4: Run unit tests**
+- [x] **Step 4: Run unit tests**
 
 ```bash
 cargo test commands::tests pubsub::tests
@@ -189,7 +189,7 @@ cargo test commands::tests pubsub::tests
 
 Expected: pass.
 
-- [ ] **Step 5: Manually verify subscribe confirmation and message delivery across two connections**
+- [x] **Step 5: Manually verify subscribe confirmation and message delivery across two connections**
 
 `redis-cli`'s own `SUBSCRIBE` blocks in the foreground waiting for messages, so use two terminals:
 
@@ -207,7 +207,7 @@ redis-cli -p 6380 PUBLISH ch1 "hello subscribers"
 
 Expected: `(integer) 1` (one subscriber received it). Terminal A should then print the delivered message: `1) "message" 2) "ch1" 3) "hello subscribers"`.
 
-- [ ] **Step 6: Manually verify PUBLISH with zero subscribers, and multi-channel UNSUBSCRIBE**
+- [x] **Step 6: Manually verify PUBLISH with zero subscribers, and multi-channel UNSUBSCRIBE**
 
 ```bash
 redis-cli -p 6380 PUBLISH nosubschannel "anyone there?"

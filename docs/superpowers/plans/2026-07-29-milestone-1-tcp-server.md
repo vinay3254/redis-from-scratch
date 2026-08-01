@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 1: TCP Server Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** A raw TCP server that accepts multiple concurrent client connections and echoes back whatever bytes each client sends, using one OS thread per connection.
 
@@ -27,7 +27,7 @@
 **Interfaces:**
 - Produces: a runnable binary crate named `redis-clone` with an empty `main()`, ready for Task 2 to fill in.
 
-- [ ] **Step 1: Initialize the cargo project in place**
+- [x] **Step 1: Initialize the cargo project in place**
 
 Run (from `C:\Users\Admin\Desktop\redis`):
 
@@ -37,7 +37,7 @@ cargo init --name redis-clone
 
 Expected: creates `Cargo.toml`, `src/main.rs` (with a default `fn main() { println!("Hello, world!"); }`), and a `.gitignore` containing `/target`. Does not touch the existing `docs/` directory.
 
-- [ ] **Step 2: Verify it builds and runs**
+- [x] **Step 2: Verify it builds and runs**
 
 Run:
 
@@ -47,7 +47,7 @@ cargo run
 
 Expected output: `Hello, world!`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock src/main.rs .gitignore
@@ -64,7 +64,7 @@ git commit -m "Initialize Rust project scaffold"
 **Interfaces:**
 - Produces: a server listening on `127.0.0.1:6379` that echoes bytes back per-connection. Later milestones replace the echo body with RESP parsing + dispatch, but keep the same accept/spawn structure.
 
-- [ ] **Step 1: Write the listener and per-connection echo loop**
+- [x] **Step 1: Write the listener and per-connection echo loop**
 
 Replace the full contents of `src/main.rs` with:
 
@@ -100,7 +100,7 @@ fn main() {
 }
 ```
 
-- [ ] **Step 2: Build it**
+- [x] **Step 2: Build it**
 
 Run:
 
@@ -110,7 +110,7 @@ cargo build
 
 Expected: compiles with no errors or warnings.
 
-- [ ] **Step 3: Manually verify single-connection echo with netcat**
+- [x] **Step 3: Manually verify single-connection echo with netcat**
 
 Start the server in one terminal:
 
@@ -126,7 +126,7 @@ printf 'hello\r\n' | nc 127.0.0.1 6379
 
 Expected: the terminal prints back `hello`.
 
-- [ ] **Step 4: Manually verify concurrent connections don't block each other**
+- [x] **Step 4: Manually verify concurrent connections don't block each other**
 
 With the server still running, open two separate interactive `nc` sessions in two terminals:
 
@@ -142,7 +142,7 @@ nc 127.0.0.1 6379
 
 Type a line into Terminal A and confirm it echoes back immediately. Without closing Terminal A, type a line into Terminal B and confirm it also echoes back immediately. Both connections should behave independently — neither should stall waiting on the other. Close both with Ctrl+C.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main.rs

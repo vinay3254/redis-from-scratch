@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 7: Sets Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists (commit `0f13bf6`). This plan documents what it must deliver so the implementation can be verified against it, rather than rewritten from scratch.
 
@@ -29,7 +29,7 @@
 **Interfaces:**
 - Produces: `Value::Set(HashSet<Vec<u8>>)`, `Db::sadd(&mut self, key: &[u8], members: &[Vec<u8>]) -> Result<usize, ()>`, `Db::srem(...)`, `Db::smembers(&mut self, key: &[u8]) -> Result<Vec<Vec<u8>>, ()>`, `Db::sismember(&mut self, key: &[u8], member: &[u8]) -> Result<bool, ()>`.
 
-- [ ] **Step 1: Confirm sadd uses HashSet::insert's boolean to count new members**
+- [x] **Step 1: Confirm sadd uses HashSet::insert's boolean to count new members**
 
 ```rust
 pub fn sadd(&mut self, key: &[u8], members: &[Vec<u8>]) -> Result<usize, ()> {
@@ -55,7 +55,7 @@ pub fn sadd(&mut self, key: &[u8], members: &[Vec<u8>]) -> Result<usize, ()> {
 }
 ```
 
-- [ ] **Step 2: Confirm srem's empty-set cleanup and sismember's boolean result**
+- [x] **Step 2: Confirm srem's empty-set cleanup and sismember's boolean result**
 
 ```rust
 pub fn sismember(&mut self, key: &[u8], member: &[u8]) -> Result<bool, ()> {
@@ -70,7 +70,7 @@ pub fn sismember(&mut self, key: &[u8], member: &[u8]) -> Result<bool, ()> {
 
 `sismember` on a nonexistent key returns `Ok(false)` (not an error) — same "missing key is empty, wrong type is an error" pattern as every other data type.
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 ```bash
 cargo test db::tests::test_set_operations
@@ -89,7 +89,7 @@ Expected: pass.
 **Interfaces:**
 - Produces: `pub fn sadd(db: &mut Db, args: &[Vec<u8>]) -> RespFrame`, `srem`, `smembers`, `sismember`.
 
-- [ ] **Step 1: Confirm SISMEMBER maps bool to RESP integer 0/1**
+- [x] **Step 1: Confirm SISMEMBER maps bool to RESP integer 0/1**
 
 ```rust
 pub fn sismember(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -104,7 +104,7 @@ pub fn sismember(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 }
 ```
 
-- [ ] **Step 2: Confirm SADD/SREM require at least one member (arity ≥ 2 total args)**
+- [x] **Step 2: Confirm SADD/SREM require at least one member (arity ≥ 2 total args)**
 
 ```rust
 pub fn sadd(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -118,7 +118,7 @@ pub fn sadd(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 }
 ```
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 ```bash
 cargo test commands::tests::test_set_commands
@@ -126,7 +126,7 @@ cargo test commands::tests::test_set_commands
 
 Expected: pass.
 
-- [ ] **Step 4: Manually verify add-count, duplicate no-op, membership, and removal**
+- [x] **Step 4: Manually verify add-count, duplicate no-op, membership, and removal**
 
 ```bash
 redis-cli -p 6380 SADD myset a b c
@@ -140,7 +140,7 @@ redis-cli -p 6380 EXISTS myset
 
 Expected: first `SADD` returns `3`, second returns `0` (duplicate, no-op), `SISMEMBER a` is `1`, `SISMEMBER zzz` is `0`, `SMEMBERS` shows all 3 in unspecified order, and after removing all members `EXISTS myset` is `0`.
 
-- [ ] **Step 5: Manually verify WRONGTYPE**
+- [x] **Step 5: Manually verify WRONGTYPE**
 
 ```bash
 redis-cli -p 6380 SET strkey v

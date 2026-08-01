@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 3: Command Dispatcher + PING/ECHO/SET/GET/DEL/EXISTS Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists in the repo (commit `71f69d5`, later folded into `src/db.rs` / `src/commands/` as later milestones extended the same files). This plan documents what Milestone 3 is supposed to deliver so the existing implementation can be checked against it task-by-task, rather than rewritten from scratch.
 
@@ -32,7 +32,7 @@
 - Consumes: nothing new (pure data structure).
 - Produces: `pub struct Db { ... }`, `pub enum Value { String(Vec<u8>), ... }`, `Db::new() -> Db`, `Db::get(&mut self, key: &[u8]) -> Option<&Value>`, `Db::set(&mut self, key: Vec<u8>, value: Value)`, `Db::del(&mut self, keys: &[Vec<u8>]) -> usize`, `Db::exists(&mut self, keys: &[Vec<u8>]) -> usize`. Later milestones add more `Value` variants and more `Db` methods to this same file — don't remove existing ones.
 
-- [ ] **Step 1: Confirm the current `Db`/`Value` definitions satisfy this milestone**
+- [x] **Step 1: Confirm the current `Db`/`Value` definitions satisfy this milestone**
 
 Read `src/db.rs`. Confirm it defines:
 
@@ -50,7 +50,7 @@ pub struct Db {
 
 with `get`, `set`, `del`, `exists` methods matching the signatures above. If any is missing or has a different signature, that's a gap against this milestone — fix it before continuing.
 
-- [ ] **Step 2: Run the existing unit tests for `Db`**
+- [x] **Step 2: Run the existing unit tests for `Db`**
 
 Run:
 
@@ -60,7 +60,7 @@ cargo test db::tests
 
 Expected: `test_db_operations` (and any other `db::tests::*` present) pass, exercising `set`/`get`/`exists`/`del`.
 
-- [ ] **Step 3: Commit (only if Step 1 required a fix)**
+- [x] **Step 3: Commit (only if Step 1 required a fix)**
 
 ```bash
 git add src/db.rs
@@ -81,14 +81,14 @@ If Step 1 required no changes, skip this commit — there's nothing new to recor
 - Consumes: `RespFrame` (from Milestone 2), `Db` (from Task 1).
 - Produces: `pub fn dispatch(frame: RespFrame, db: Arc<Mutex<Db>>, ...) -> RespFrame` (later milestones add more parameters — `pubsub`, `aof` — to this same signature, so check by matching first 2 params, not exact arity), `pub fn ping(args: &[Vec<u8>]) -> RespFrame`, `pub fn echo(args: &[Vec<u8>]) -> RespFrame`.
 
-- [ ] **Step 1: Confirm argument extraction from the RESP array**
+- [x] **Step 1: Confirm argument extraction from the RESP array**
 
 Read `src/commands/mod.rs`. Confirm `dispatch` (or a helper it calls) does the following before matching on command name:
 1. Rejects anything that isn't `RespFrame::Array(Some(elements))` with at least one element, returning `RespFrame::Error("ERR command must be a non-empty array".into())`.
 2. Extracts each array element's bytes (`BulkString(Some(bytes))` primarily; `SimpleString` should also work since RESP2 clients may send either).
 3. Uppercases the first element as the command name; the rest are `cmd_args`.
 
-- [ ] **Step 2: Confirm PING and ECHO handlers**
+- [x] **Step 2: Confirm PING and ECHO handlers**
 
 Read `src/commands/string.rs`. Confirm:
 
@@ -111,7 +111,7 @@ pub fn echo(args: &[Vec<u8>]) -> RespFrame {
 
 `PING` with zero args returns a simple string `PONG`; `PING <msg>` echoes `<msg>` as a bulk string (real Redis behavior) — confirm both arms exist.
 
-- [ ] **Step 3: Build and run unit tests**
+- [x] **Step 3: Build and run unit tests**
 
 Run:
 
@@ -121,7 +121,7 @@ cargo build && cargo test commands::tests::test_ping_echo
 
 Expected: builds clean, test passes.
 
-- [ ] **Step 4: Manually verify with redis-cli**
+- [x] **Step 4: Manually verify with redis-cli**
 
 With the server running (`cargo run`, or the built binary, listening on 6380):
 
@@ -146,7 +146,7 @@ Expected: `PONG`, `"hello there"`, `"hello there"`, and an arity error for the b
 - Consumes: `Db::get`/`Db::set` from Task 1.
 - Produces: `pub fn set(db: &mut Db, args: &[Vec<u8>]) -> RespFrame`, `pub fn get(db: &mut Db, args: &[Vec<u8>]) -> RespFrame`.
 
-- [ ] **Step 1: Confirm SET**
+- [x] **Step 1: Confirm SET**
 
 ```rust
 pub fn set(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -158,7 +158,7 @@ pub fn set(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 }
 ```
 
-- [ ] **Step 2: Confirm GET, including the WRONGTYPE and nil cases**
+- [x] **Step 2: Confirm GET, including the WRONGTYPE and nil cases**
 
 ```rust
 pub fn get(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -177,7 +177,7 @@ pub fn get(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 
 Note the `Some(_)` arm only becomes reachable once a non-String `Value` variant exists (added in later milestones) — it's fine for it to be unreachable in practice at this exact point in history, as long as the match compiles.
 
-- [ ] **Step 3: Build and test**
+- [x] **Step 3: Build and test**
 
 Run:
 
@@ -187,7 +187,7 @@ cargo build && cargo test commands::tests::test_set_get_del_exists
 
 Expected: builds clean, test passes.
 
-- [ ] **Step 4: Manually verify with redis-cli**
+- [x] **Step 4: Manually verify with redis-cli**
 
 ```bash
 redis-cli -p 6380 SET greeting hello
@@ -210,7 +210,7 @@ Expected: `OK`, `"hello"`, `(nil)`, arity error on the last one.
 - Consumes: `Db::del`/`Db::exists` from Task 1.
 - Produces: `pub fn del(db: &mut Db, args: &[Vec<u8>]) -> RespFrame`, `pub fn exists(db: &mut Db, args: &[Vec<u8>]) -> RespFrame`. Both accept a variadic key list, matching real Redis (`DEL k1 k2 k3`, `EXISTS k1 k2 k2` counts `k2` twice if present).
 
-- [ ] **Step 1: Confirm DEL and EXISTS accept multiple keys**
+- [x] **Step 1: Confirm DEL and EXISTS accept multiple keys**
 
 ```rust
 pub fn del(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -230,7 +230,7 @@ pub fn exists(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 }
 ```
 
-- [ ] **Step 2: Build and test**
+- [x] **Step 2: Build and test**
 
 ```bash
 cargo build && cargo test commands::tests::test_set_get_del_exists
@@ -238,7 +238,7 @@ cargo build && cargo test commands::tests::test_set_get_del_exists
 
 Expected: builds clean, test passes (same test as Task 3, since it exercises the full SET/GET/DEL/EXISTS chain).
 
-- [ ] **Step 3: Manually verify with redis-cli, including multi-key behavior**
+- [x] **Step 3: Manually verify with redis-cli, including multi-key behavior**
 
 ```bash
 redis-cli -p 6380 SET a 1
@@ -251,7 +251,7 @@ redis-cli -p 6380 EXISTS a b
 
 Expected: `2` (a and b exist, c doesn't), `2` (a counted twice), `2` (only a and b were actually deleted, c didn't exist), `0`.
 
-- [ ] **Step 4: Verify unknown-command handling end-to-end**
+- [x] **Step 4: Verify unknown-command handling end-to-end**
 
 ```bash
 redis-cli -p 6380 FOOBAR

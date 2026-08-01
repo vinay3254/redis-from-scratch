@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 5: Lists Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists (commit `1442a95`). This plan documents what it must deliver so the implementation can be verified against it, rather than rewritten from scratch.
 
@@ -29,7 +29,7 @@
 - Produces: `Value::List(VecDeque<Vec<u8>>)`, `Db::lpush(&mut self, key: &[u8], elements: &[Vec<u8>]) -> Result<usize, ()>`, `Db::rpush(...)`, `Db::lpop(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>, ()>`, `Db::rpop(...)`, `Db::lrange(&mut self, key: &[u8], start: i64, stop: i64) -> Result<Vec<Vec<u8>>, ()>`, `normalize_indices(len: usize, start: i64, stop: i64) -> Option<(usize, usize)>` (free function).
 - `Err(())` signals WRONGTYPE to the caller (the command layer converts it to the actual RESP error).
 
-- [ ] **Step 1: Confirm normalize_indices handles negative indices and edge cases**
+- [x] **Step 1: Confirm normalize_indices handles negative indices and edge cases**
 
 ```rust
 fn normalize_indices(len: usize, start: i64, stop: i64) -> Option<(usize, usize)> {
@@ -64,7 +64,7 @@ fn normalize_indices(len: usize, start: i64, stop: i64) -> Option<(usize, usize)
 
 Trace through `normalize_indices(3, 0, -1)` by hand: `l=3`, `s=0`, `e = 3 + (-1) = 2`, no clamping needed, returns `Some((0, 2))` — the whole list, which is the most common `LRANGE key 0 -1` call.
 
-- [ ] **Step 2: Confirm lpush/rpush create-if-missing and reject wrong type**
+- [x] **Step 2: Confirm lpush/rpush create-if-missing and reject wrong type**
 
 ```rust
 pub fn lpush(&mut self, key: &[u8], elements: &[Vec<u8>]) -> Result<usize, ()> {
@@ -89,7 +89,7 @@ pub fn lpush(&mut self, key: &[u8], elements: &[Vec<u8>]) -> Result<usize, ()> {
 
 `rpush` is identical except `push_back`. Confirm both exist with this shape.
 
-- [ ] **Step 3: Confirm lpop/rpop clean up empty lists**
+- [x] **Step 3: Confirm lpop/rpop clean up empty lists**
 
 ```rust
 pub fn lpop(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>, ()> {
@@ -111,7 +111,7 @@ pub fn lpop(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>, ()> {
 
 Confirm `rpop` mirrors this with `pop_back`, and that popping from a nonexistent key returns `Ok(None)` (not an error) — only a *wrong-typed* key is an error.
 
-- [ ] **Step 4: Run unit tests**
+- [x] **Step 4: Run unit tests**
 
 ```bash
 cargo test db::tests::test_list_operations
@@ -130,7 +130,7 @@ Expected: pass, covering push order, `lrange`, and pop-to-empty behavior.
 **Interfaces:**
 - Produces: `pub fn lpush(db: &mut Db, args: &[Vec<u8>]) -> RespFrame`, `rpush`, `lpop`, `rpop`, `lrange`.
 
-- [ ] **Step 1: Confirm arity checks and WRONGTYPE mapping**
+- [x] **Step 1: Confirm arity checks and WRONGTYPE mapping**
 
 ```rust
 const WRONG_TYPE_ERR: &str =
@@ -149,7 +149,7 @@ pub fn lpush(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 
 `lpush`/`rpush` require at least 2 args (key + one value); `lpop`/`rpop` require exactly 1 (just the key); `lrange` requires exactly 3 (key, start, stop) and returns `ERR value is not an integer or out of range` if either bound fails to parse as `i64`.
 
-- [ ] **Step 2: Confirm LRANGE serializes to a RESP array of bulk strings**
+- [x] **Step 2: Confirm LRANGE serializes to a RESP array of bulk strings**
 
 ```rust
 pub fn lrange(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -164,7 +164,7 @@ pub fn lrange(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 }
 ```
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 ```bash
 cargo test commands::tests::test_list_commands
@@ -172,7 +172,7 @@ cargo test commands::tests::test_list_commands
 
 Expected: pass.
 
-- [ ] **Step 4: Manually verify push order, pop, range, and negative indices**
+- [x] **Step 4: Manually verify push order, pop, range, and negative indices**
 
 ```bash
 redis-cli -p 6380 LPUSH mylist a b c
@@ -186,7 +186,7 @@ redis-cli -p 6380 LRANGE mylist 0 -1
 
 Expected: after `LPUSH a b c` then `RPUSH x y`, the list is `c b a x y` (LPUSH reverses insertion order at the head). `LRANGE 0 -1` shows all 5; `LRANGE -2 -1` shows the last two (`x y`). After one `LPOP` and one `RPOP`, the list is `b a x`.
 
-- [ ] **Step 5: Manually verify WRONGTYPE and empty-list cleanup**
+- [x] **Step 5: Manually verify WRONGTYPE and empty-list cleanup**
 
 ```bash
 redis-cli -p 6380 SET strkey hello

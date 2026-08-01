@@ -1,6 +1,6 @@
 # Redis Clone — Milestone 6: Hashes Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
 > **Note:** This milestone's code already exists (commit `aebd2fe`). This plan documents what it must deliver so the implementation can be verified against it, rather than rewritten from scratch.
 
@@ -28,7 +28,7 @@
 **Interfaces:**
 - Produces: `Value::Hash(HashMap<Vec<u8>, Vec<u8>>)`, `Db::hset(&mut self, key: &[u8], pairs: &[(Vec<u8>, Vec<u8>)]) -> Result<usize, ()>`, `Db::hget(&mut self, key: &[u8], field: &[u8]) -> Result<Option<Vec<u8>>, ()>`, `Db::hgetall(&mut self, key: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, ()>`, `Db::hdel(&mut self, key: &[u8], fields: &[Vec<u8>]) -> Result<usize, ()>`.
 
-- [ ] **Step 1: Confirm hset counts only newly-created fields**
+- [x] **Step 1: Confirm hset counts only newly-created fields**
 
 ```rust
 pub fn hset(&mut self, key: &[u8], pairs: &[(Vec<u8>, Vec<u8>)]) -> Result<usize, ()> {
@@ -56,7 +56,7 @@ pub fn hset(&mut self, key: &[u8], pairs: &[(Vec<u8>, Vec<u8>)]) -> Result<usize
 
 The `HashMap::insert` return value (`None` means no prior entry) is exactly the signal needed to distinguish "created" from "overwritten" — confirm this logic is present, not just always incrementing `created`.
 
-- [ ] **Step 2: Confirm hget/hgetall/hdel, and hdel's empty-hash cleanup**
+- [x] **Step 2: Confirm hget/hgetall/hdel, and hdel's empty-hash cleanup**
 
 ```rust
 pub fn hdel(&mut self, key: &[u8], fields: &[Vec<u8>]) -> Result<usize, ()> {
@@ -83,7 +83,7 @@ pub fn hdel(&mut self, key: &[u8], fields: &[Vec<u8>]) -> Result<usize, ()> {
 
 `hget`/`hgetall` on a missing key return `Ok(None)`/`Ok(Vec::new())` respectively (empty, not an error) — only wrong-typed keys are errors.
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 ```bash
 cargo test db::tests::test_hash_operations
@@ -102,7 +102,7 @@ Expected: pass.
 **Interfaces:**
 - Produces: `pub fn hset(db: &mut Db, args: &[Vec<u8>]) -> RespFrame`, `hget`, `hgetall`, `hdel`.
 
-- [ ] **Step 1: Confirm HSET's arity check requires an even number of field/value args**
+- [x] **Step 1: Confirm HSET's arity check requires an even number of field/value args**
 
 ```rust
 pub fn hset(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -123,7 +123,7 @@ pub fn hset(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 
 `args.len() < 3` rejects `HSET key` (no field/value pair at all); the modulo check rejects an odd count like `HSET key f1 v1 f2` (dangling field with no value).
 
-- [ ] **Step 2: Confirm HGETALL flattens pairs into a single RESP array**
+- [x] **Step 2: Confirm HGETALL flattens pairs into a single RESP array**
 
 ```rust
 pub fn hgetall(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
@@ -146,7 +146,7 @@ pub fn hgetall(db: &mut Db, args: &[Vec<u8>]) -> RespFrame {
 
 This matches real Redis's flat `[field1, value1, field2, value2, ...]` wire format for `HGETALL`.
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 ```bash
 cargo test commands::tests::test_hash_commands
@@ -154,7 +154,7 @@ cargo test commands::tests::test_hash_commands
 
 Expected: pass.
 
-- [ ] **Step 4: Manually verify field creation count, overwrite, and HGETALL**
+- [x] **Step 4: Manually verify field creation count, overwrite, and HGETALL**
 
 ```bash
 redis-cli -p 6380 HSET myhash f1 v1 f2 v2
@@ -165,7 +165,7 @@ redis-cli -p 6380 HGETALL myhash
 
 Expected: first `HSET` returns `2` (both new); second returns `1` (only `f3` is new, `f1` was overwritten); `HGET f1` shows `newval`; `HGETALL` shows all three fields with current values.
 
-- [ ] **Step 5: Manually verify HDEL empty-hash cleanup and arity errors**
+- [x] **Step 5: Manually verify HDEL empty-hash cleanup and arity errors**
 
 ```bash
 redis-cli -p 6380 HDEL myhash f1 f2 f3
